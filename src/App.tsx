@@ -44,6 +44,49 @@ const generateRandomTile = (matchingSyllables?: string[]): TileData => {
   };
 };
 
+const getAvailableSyllables = (tiles: TileData[]): string[] => {
+  const boardTiles = tiles.filter(t => t.isOnBoard && t.hasBeenConnected);
+  if (boardTiles.length === 0) return [];
+
+  const allSquares: { x: number, y: number, syl: string, tileId: string }[] = [];
+  for (const t of boardTiles) {
+     const rot = (t.rotation % 360 + 360) % 360;
+     const rad = rot * Math.PI / 180;
+     const cx = (t.x || 0) + 112;
+     const cy = (t.y || 0) + 56;
+     allSquares.push({
+       x: Math.round(cx - 56 * Math.cos(rad)), 
+       y: Math.round(cy - 56 * Math.sin(rad)), 
+       syl: t.leftSyllable,
+       tileId: t.id
+     });
+     allSquares.push({
+       x: Math.round(cx + 56 * Math.cos(rad)), 
+       y: Math.round(cy + 56 * Math.sin(rad)), 
+       syl: t.rightSyllable,
+       tileId: t.id
+     });
+  }
+
+  const available: string[] = [];
+  for (let i = 0; i < allSquares.length; i++) {
+     const sq = allSquares[i];
+     let isTaken = false;
+     for (let j = 0; j < allSquares.length; j++) {
+        if (i === j || sq.tileId === allSquares[j].tileId) continue;
+        const dist = Math.abs(sq.x - allSquares[j].x) + Math.abs(sq.y - allSquares[j].y);
+        if (dist > 100 && dist < 120) {
+           isTaken = true;
+           break;
+        }
+     }
+     if (!isTaken) {
+        available.push(sq.syl);
+     }
+  }
+  return available;
+};
+
 const ColoredSyllable: React.FC<{ text: string }> = ({ text }) => {
   return (
     <>
@@ -67,6 +110,27 @@ function App() {
   const [boardOffset, setBoardOffset] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   
+  useEffect(() => {
+     const boardTiles = tiles.filter(t => t.isOnBoard && t.hasBeenConnected);
+     const paletteTiles = tiles.filter(t => !t.isOnBoard);
+     if (boardTiles.length > 0 && paletteTiles.length > 0) {
+         const available = getAvailableSyllables(tiles);
+         if (available.length > 0) {
+             const hasMatch = paletteTiles.some(pt => available.includes(pt.leftSyllable) || available.includes(pt.rightSyllable));
+             if (!hasMatch) {
+                 setTiles(prev => {
+                     const updated = [...prev];
+                     const pIndex = updated.findIndex(t => !t.isOnBoard);
+                     if (pIndex !== -1) {
+                         updated[pIndex] = generateRandomTile(available);
+                     }
+                     return updated;
+                 });
+             }
+         }
+     }
+  }, [tiles]);
+
   useEffect(() => {
     const handleResize = () => {
       // 1728 is the exact width of a 16-inch MacBook. By scaling rigidly against this,
@@ -298,8 +362,8 @@ function App() {
 
             // Replenish palette if it wasn't connected before!
             if (!draggedTile.hasBeenConnected) {
-              const currentBoardSyllables = updated.filter(t => t.isOnBoard).flatMap(t => [t.leftSyllable, t.rightSyllable]);
-              const newPaletteTile = generateRandomTile(currentBoardSyllables);
+              const available = getAvailableSyllables(updated);
+              const newPaletteTile = generateRandomTile(available);
               updated = [...updated, newPaletteTile];
             }
             return updated;
@@ -365,11 +429,11 @@ function App() {
             style={{padding: '0.75rem 1.5rem', fontSize: '1.2rem', borderRadius: '12px', border: '1px solid var(--palette-border)', background: 'var(--palette-bg)', color: '#fff', cursor: 'pointer', fontWeight: 600}}
             onClick={() => {
               const onBoardTiles = tiles.filter(t => t.isOnBoard);
-              const boardSyllables = onBoardTiles.flatMap(t => [t.leftSyllable, t.rightSyllable]);
+              const available = getAvailableSyllables(tiles);
               
               const newPaletteTiles = Array.from({ length: 10 }).map((_, i) => {
-                if (i < 5 && boardSyllables.length > 0) {
-                  return generateRandomTile(boardSyllables);
+                if (i < 5 && available.length > 0) {
+                  return generateRandomTile(available);
                 }
                 return generateRandomTile();
               });
