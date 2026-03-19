@@ -69,7 +69,9 @@ function App() {
   
   useEffect(() => {
     const handleResize = () => {
-      const scale = Math.min(1, window.innerWidth / 1500);
+      // 1728 is the exact width of a 16-inch MacBook. By scaling rigidly against this,
+      // all smaller screens (13", 14") will render proportionally 1:1 identical layouts.
+      const scale = Math.min(1, window.innerWidth / 1728);
       document.documentElement.style.setProperty('--app-scale', scale.toString());
       (window as any).__appScale = scale;
     };
