@@ -67,6 +67,17 @@ function App() {
   const [boardOffset, setBoardOffset] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   
+  useEffect(() => {
+    const handleResize = () => {
+      const scale = Math.min(1, window.innerWidth / 1500);
+      document.documentElement.style.setProperty('--app-scale', scale.toString());
+      (window as any).__appScale = scale;
+    };
+    window.addEventListener('resize', handleResize);
+    handleResize();
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+  
   const dragInfo = useRef({
     startX: 0,
     startY: 0,
@@ -102,10 +113,11 @@ function App() {
     if ((e.target as HTMLElement).closest('.tile')) return;
     if (e.button !== 0) return;
     
+    const scale = (window as any).__appScale || 1;
     setIsPanning(true);
     dragInfo.current = {
-      startX: e.clientX,
-      startY: e.clientY,
+      startX: e.clientX / scale,
+      startY: e.clientY / scale,
       initialX: boardOffset.x,
       initialY: boardOffset.y,
       originWasBoard: false
@@ -131,19 +143,21 @@ function App() {
     let initY = tile.y || 0;
 
     if (!isOnBoard && boardRef.current) {
+      const scale = (window as any).__appScale || 1;
       const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
       const boardRect = boardRef.current.getBoundingClientRect();
-      initX = rect.left - boardRect.left - boardOffset.x;
-      initY = rect.top - boardRect.top - boardOffset.y;
+      initX = ((rect.left - boardRect.left) / scale) - boardOffset.x;
+      initY = ((rect.top - boardRect.top) / scale) - boardOffset.y;
       
       setTiles(prev => prev.map(t => 
           t.id === id ? { ...t, isOnBoard: true, x: initX, y: initY } : t
       ));
     }
 
+    const scale = (window as any).__appScale || 1;
     dragInfo.current = {
-      startX: e.clientX,
-      startY: e.clientY,
+      startX: e.clientX / scale,
+      startY: e.clientY / scale,
       initialX: initX,
       initialY: initY,
       originWasBoard: isOnBoard
@@ -151,9 +165,11 @@ function App() {
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
+    const scale = (window as any).__appScale || 1;
+    
     if (isPanning) {
-      const dx = e.clientX - dragInfo.current.startX;
-      const dy = e.clientY - dragInfo.current.startY;
+      const dx = (e.clientX / scale) - dragInfo.current.startX;
+      const dy = (e.clientY / scale) - dragInfo.current.startY;
       setBoardOffset({
         x: dragInfo.current.initialX + dx,
         y: dragInfo.current.initialY + dy
@@ -163,8 +179,8 @@ function App() {
 
     if (!draggingId) return;
     
-    const dx = e.clientX - dragInfo.current.startX;
-    const dy = e.clientY - dragInfo.current.startY;
+    const dx = (e.clientX / scale) - dragInfo.current.startX;
+    const dy = (e.clientY / scale) - dragInfo.current.startY;
     
     setTiles(prev => prev.map(t => {
       if (t.id === draggingId) {

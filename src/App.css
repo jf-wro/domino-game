@@ -1,9 +1,15 @@
 .app-container {
+  width: calc(100vw / var(--app-scale, 1));
+  height: calc(100vh / var(--app-scale, 1));
+  transform: scale(var(--app-scale, 1));
+  transform-origin: top left;
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  width: 100vw;
-  position: relative;
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: hidden;
+  background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
 }
 
 .header {
@@ -25,13 +31,16 @@
 }
 
 .board-area {
-  flex-grow: 1;
+  flex: 1;
   position: relative;
   overflow: hidden;
-  /* background pattern for a board feel */
-  background-image: 
-    radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px);
-  background-size: 40px 40px;
+  background-image: radial-gradient(var(--grid-color) 2px, transparent 2px);
+  background-size: 56px 56px;
+  background-position: center;
+}
+
+.board-area > div {
+  filter: drop-shadow(0px 8px 25px rgba(0,0,0,0.35));
 }
 
 /* Palette styles */
@@ -77,6 +86,10 @@
   cursor: grab;
   position: relative;
   pointer-events: auto;
+}
+
+.tile.on-board {
+  box-shadow: none !important;
 }
 
 .tile:active {
