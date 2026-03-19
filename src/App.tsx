@@ -108,6 +108,7 @@ function App() {
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [glowId, setGlowId] = useState<string | null>(null);
   const [boardOffset, setBoardOffset] = useState({ x: 0, y: 0 });
+  const [boardZoom, setBoardZoom] = useState(1);
   const [isPanning, setIsPanning] = useState(false);
   
   useEffect(() => {
@@ -142,6 +143,41 @@ function App() {
     window.addEventListener('resize', handleResize);
     handleResize();
     return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    const el = boardRef.current;
+    if (!el) return;
+
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      
+      const scaleStr = document.documentElement.style.getPropertyValue('--app-scale') || '1';
+      const appScale = parseFloat(scaleStr);
+      
+      const rect = el.getBoundingClientRect();
+      const mouseX = (e.clientX - rect.left) / appScale;
+      const mouseY = (e.clientY - rect.top) / appScale;
+      
+      setBoardZoom(prevZoom => {
+         const zoomFactor = Math.exp(-e.deltaY * 0.005);
+         const newZoom = Math.max(0.3, Math.min(prevZoom * zoomFactor, 2.5));
+         
+         setBoardOffset(prevOffset => {
+           const Wx = (mouseX - prevOffset.x) / prevZoom;
+           const Wy = (mouseY - prevOffset.y) / prevZoom;
+           
+           return {
+             x: mouseX - Wx * newZoom,
+             y: mouseY - Wy * newZoom
+           };
+         });
+         return newZoom;
+      });
+    };
+
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
   }, []);
   
   const dragInfo = useRef({
@@ -212,8 +248,8 @@ function App() {
       const scale = (window as any).__appScale || 1;
       const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
       const boardRect = boardRef.current.getBoundingClientRect();
-      initX = ((rect.left - boardRect.left) / scale) - boardOffset.x;
-      initY = ((rect.top - boardRect.top) / scale) - boardOffset.y;
+      initX = (((rect.left - boardRect.left) / scale) - boardOffset.x) / boardZoom;
+      initY = (((rect.top - boardRect.top) / scale) - boardOffset.y) / boardZoom;
       
       setTiles(prev => prev.map(t => 
           t.id === id ? { ...t, isOnBoard: true, x: initX, y: initY } : t
@@ -222,8 +258,8 @@ function App() {
 
     const scale = (window as any).__appScale || 1;
     dragInfo.current = {
-      startX: e.clientX / scale,
-      startY: e.clientY / scale,
+      startX: (e.clientX / scale) / boardZoom,
+      startY: (e.clientY / scale) / boardZoom,
       initialX: initX,
       initialY: initY,
       originWasBoard: isOnBoard
@@ -245,8 +281,8 @@ function App() {
 
     if (!draggingId) return;
     
-    const dx = (e.clientX / scale) - dragInfo.current.startX;
-    const dy = (e.clientY / scale) - dragInfo.current.startY;
+    const dx = (e.clientX / scale) / boardZoom - dragInfo.current.startX;
+    const dy = (e.clientY / scale) / boardZoom - dragInfo.current.startY;
     
     setTiles(prev => prev.map(t => {
       if (t.id === draggingId) {
@@ -450,12 +486,18 @@ function App() {
         className="board-area" 
         ref={boardRef}
         onPointerDown={handlePointerDownBoard}
+        onDoubleClick={(e) => {
+          if ((e.target as HTMLElement).closest('.tile')) return;
+          setBoardZoom(1);
+          setBoardOffset({ x: 0, y: 0 });
+        }}
         style={{ 
           cursor: isPanning ? 'grabbing' : 'grab',
-          backgroundPosition: `${boardOffset.x}px ${boardOffset.y}px`
+          backgroundPosition: `${boardOffset.x}px ${boardOffset.y}px`,
+          backgroundSize: `${56 * boardZoom}px ${56 * boardZoom}px`
         }}
       >
-        <div style={{ transform: `translate(${boardOffset.x}px, ${boardOffset.y}px)`, width: '100%', height: '100%', position: 'absolute', pointerEvents: 'none' }}>
+        <div style={{ transform: `translate(${boardOffset.x}px, ${boardOffset.y}px) scale(${boardZoom})`, transformOrigin: '0 0', width: '100%', height: '100%', position: 'absolute', pointerEvents: 'none' }}>
           {tiles.filter(t => t.isOnBoard).map(tile => {
              let classes = `tile on-board`;
              if (draggingId === tile.id) classes += ' is-dragging';

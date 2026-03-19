@@ -10,6 +10,7 @@
   left: 0;
   overflow: hidden;
   background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+  touch-action: none;
 }
 
 .header {
@@ -35,8 +36,8 @@
   position: relative;
   overflow: hidden;
   background-image: radial-gradient(var(--grid-color) 2px, transparent 2px);
-  background-size: 56px 56px;
   background-position: center;
+  touch-action: none;
 }
 
 .board-area > div {
