@@ -14,7 +14,7 @@ const VALID_WORDS = new Set([
   'baza', 'tama', 'tara', 'tata', 'taka', 'laba', 'lama', 'lara', 'lawa', 'kapa', 'kara', 
   'kasa', 'kawa', 'paka', 'papa', 'para', 'raca', 'rada', 'rama', 'rana', 
   'rasa', 'rata', 'saga', 'sala', 'sama', 'waga', 'wata', 'wada', 'waza', 'fala', 
-  'gala', 'gama', 'gapa', 'gaza', 'hala', 'jama', 'jawa', 'mata', 'faza'
+  'gala', 'gama', 'gapa', 'gaza', 'hala', 'jama', 'jawa', 'mata', 'faza', 'gafa'
 ]);
 
 // Only syllables that can START a valid word — prevents dead-ends when exposed on the right side of board
