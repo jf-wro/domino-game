@@ -14,7 +14,7 @@ const VALID_WORDS = new Set([
   'baza', 'tama', 'tara', 'tata', 'taka', 'laba', 'lama', 'lara', 'lawa', 'kapa', 'kara', 
   'kasa', 'kawa', 'paka', 'papa', 'para', 'raca', 'rada', 'rama', 'rana', 
   'rasa', 'rata', 'saga', 'sala', 'sama', 'waga', 'wata', 'wada', 'waza', 'fala', 
-  'gala', 'gama', 'gapa', 'gaza', 'hala', 'jama', 'jana', 'jawa', 'mata'
+  'gala', 'gama', 'gapa', 'gaza', 'hala', 'jama', 'jana', 'jawa', 'mata', 'faza'
 ]);
 
 const SYLLABLES_WORD_MODE = SYLLABLES.filter(s => 
