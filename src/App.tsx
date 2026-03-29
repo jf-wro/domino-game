@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import './App.css';
-import { RotateCw } from 'lucide-react';
+import { RotateCw, Settings, X, Check } from 'lucide-react';
 
 const SYLLABLES = [
   'ma', 'da', 'ba', 'ta', 'la', 'ka', 'pa', 'ra', 'sa', 'za',
@@ -8,6 +8,18 @@ const SYLLABLES = [
 ];
 
 const VOWELS = new Set(['a', 'e', 'i', 'o', 'u', 'y', 'ą', 'ę', 'ó']);
+
+const VALID_WORDS = new Set([
+  'mama', 'mapa', 'masa', 'maja', 'maca', 'dama', 'data', 'daga', 'baba', 'baca', 
+  'baza', 'tama', 'tata', 'taka', 'laba', 'lama', 'lara', 'lawa', 'kapa', 'kara', 
+  'kasa', 'kawa', 'paka', 'papa', 'para', 'raca', 'rada', 'rama', 'rana', 
+  'rasa', 'rata', 'saga', 'sala', 'sama', 'waga', 'wata', 'wada', 'waza', 'fala', 
+  'gala', 'gama', 'gapa', 'gaza', 'hala', 'jama', 'jana', 'jawa'
+]);
+
+const SYLLABLES_WORD_MODE = SYLLABLES.filter(s => 
+  Array.from(VALID_WORDS).some(word => word.includes(s))
+);
 
 interface TileData {
   id: string;
@@ -21,9 +33,9 @@ interface TileData {
   hasBeenConnected?: boolean;
 }
 
-const generateRandomTile = (matchingSyllables?: string[]): TileData => {
-  let s1 = SYLLABLES[Math.floor(Math.random() * SYLLABLES.length)];
-  let s2 = SYLLABLES[Math.floor(Math.random() * SYLLABLES.length)];
+const generateRandomTile = (matchingSyllables?: string[], pool: string[] = SYLLABLES): TileData => {
+  let s1 = pool[Math.floor(Math.random() * pool.length)];
+  let s2 = pool[Math.floor(Math.random() * pool.length)];
 
   if (matchingSyllables && matchingSyllables.length > 0) {
     const match = matchingSyllables[Math.floor(Math.random() * matchingSyllables.length)];
@@ -110,27 +122,50 @@ function App() {
   const [boardOffset, setBoardOffset] = useState({ x: 0, y: 0 });
   const [boardZoom, setBoardZoom] = useState(1);
   const [isPanning, setIsPanning] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [gameMode, setGameMode] = useState<'match-syllables' | 'build-words'>('match-syllables');
   
   useEffect(() => {
      const boardTiles = tiles.filter(t => t.isOnBoard && t.hasBeenConnected);
      const paletteTiles = tiles.filter(t => !t.isOnBoard);
      if (boardTiles.length > 0 && paletteTiles.length > 0) {
-         const available = getAvailableSyllables(tiles);
-         if (available.length > 0) {
-             const hasMatch = paletteTiles.some(pt => available.includes(pt.leftSyllable) || available.includes(pt.rightSyllable));
+         const availableBoardSyllables = getAvailableSyllables(tiles);
+         if (availableBoardSyllables.length > 0) {
+             let hasMatch = false;
+             if (gameMode === 'match-syllables') {
+                hasMatch = paletteTiles.some(pt => availableBoardSyllables.includes(pt.leftSyllable) || availableBoardSyllables.includes(pt.rightSyllable));
+             } else {
+                // Word mode: check if any palette syllable forms a word with any board syllable
+                hasMatch = paletteTiles.some(pt => 
+                   availableBoardSyllables.some(abs => 
+                      VALID_WORDS.has(abs + pt.leftSyllable) || VALID_WORDS.has(pt.leftSyllable + abs) ||
+                      VALID_WORDS.has(abs + pt.rightSyllable) || VALID_WORDS.has(pt.rightSyllable + abs)
+                   )
+                );
+             }
+
              if (!hasMatch) {
                  setTiles(prev => {
                      const updated = [...prev];
                      const pIndex = updated.findIndex(t => !t.isOnBoard);
                      if (pIndex !== -1) {
-                         updated[pIndex] = generateRandomTile(available);
+                         // Find a matching syllable for the new tile
+                         let matching: string[] = [];
+                         const currentPool = gameMode === 'match-syllables' ? SYLLABLES : SYLLABLES_WORD_MODE;
+                            // Word mode: Find syllables that form words with available board syllables
+                            currentPool.forEach(s => {
+                               if (availableBoardSyllables.some(abs => VALID_WORDS.has(abs + s) || VALID_WORDS.has(s + abs))) {
+                                  matching.push(s);
+                               }
+                            });
+                         updated[pIndex] = generateRandomTile(matching, currentPool);
                      }
                      return updated;
                  });
              }
          }
      }
-  }, [tiles]);
+  }, [tiles, gameMode]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -191,8 +226,11 @@ function App() {
   const boardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    // RESET GAME ON MODE CHANGE
+    const currentPool = gameMode === 'match-syllables' ? SYLLABLES : SYLLABLES_WORD_MODE;
+    
     // 1 Starter tile on the board
-    const starterTile = generateRandomTile();
+    const starterTile = generateRandomTile(undefined, currentPool);
     starterTile.isOnBoard = true;
     starterTile.x = Math.round((window.innerWidth / 2 - 112) / 56) * 56;
     starterTile.y = Math.round((Math.max(100, window.innerHeight / 3 - 56)) / 56) * 56;
@@ -203,13 +241,15 @@ function App() {
     const initialTiles: TileData[] = [starterTile];
     for (let i = 0; i < 10; i++) {
        if (i < 3) {
-         initialTiles.push(generateRandomTile([starterTile.leftSyllable, starterTile.rightSyllable]));
+         initialTiles.push(generateRandomTile([starterTile.leftSyllable, starterTile.rightSyllable], currentPool));
        } else {
-         initialTiles.push(generateRandomTile());
+         initialTiles.push(generateRandomTile(undefined, currentPool));
        }
     }
     setTiles(initialTiles);
-  }, []);
+    setBoardOffset({ x: 0, y: 0 });
+    setBoardZoom(1);
+  }, [gameMode]);
 
   const handlePointerDownBoard = (e: React.PointerEvent) => {
     if ((e.target as HTMLElement).closest('.tile')) return;
@@ -355,23 +395,64 @@ function App() {
                  isOverlapping = true;
               } else if (dist > 100 && dist < 120) {
                  // Touching!
-                 if (Asq.syl !== Bsq.syl) {
-                    invalidConnections++;
+                 if (gameMode === 'match-syllables') {
+                    if (Asq.syl !== Bsq.syl) {
+                       invalidConnections++;
+                    } else {
+                       let bSqIsTaken = false;
+                       for (const Csq of allBoardSquares) {
+                          if (Csq.tileId === Bsq.tileId) continue;
+                          const cDist = Math.abs(Bsq.x - Csq.x) + Math.abs(Bsq.y - Csq.y);
+                          if (cDist > 100 && cDist < 120) {
+                             bSqIsTaken = true;
+                             break;
+                          }
+                       }
+
+                       if (bSqIsTaken) {
+                          invalidConnections++;
+                       } else {
+                          validConnections++;
+                       }
+                    }
                  } else {
-                    let bSqIsTaken = false;
-                    for (const Csq of allBoardSquares) {
-                       if (Csq.tileId === Bsq.tileId) continue;
-                       const cDist = Math.abs(Bsq.x - Csq.x) + Math.abs(Bsq.y - Csq.y);
-                       if (cDist > 100 && cDist < 120) {
-                          bSqIsTaken = true;
-                          break;
+                    // WORD MODE
+                    let word = '';
+                    if (Math.abs(Asq.x - Bsq.x) < 10) {
+                       // Vertical connection
+                       if (Asq.y < Bsq.y) {
+                          word = Asq.syl + Bsq.syl;
+                       } else {
+                          word = Bsq.syl + Asq.syl;
+                       }
+                    } else {
+                       // Horizontal connection
+                       if (Asq.x < Bsq.x) {
+                          word = Asq.syl + Bsq.syl;
+                       } else {
+                          word = Bsq.syl + Asq.syl;
                        }
                     }
 
-                    if (bSqIsTaken) {
+                    if (!VALID_WORDS.has(word)) {
                        invalidConnections++;
                     } else {
-                       validConnections++;
+                       // Check if board square is already taken
+                       let bSqIsTaken = false;
+                       for (const Csq of allBoardSquares) {
+                          if (Csq.tileId === Bsq.tileId) continue;
+                          const cDist = Math.abs(Bsq.x - Csq.x) + Math.abs(Bsq.y - Csq.y);
+                          if (cDist > 100 && cDist < 120) {
+                             bSqIsTaken = true;
+                             break;
+                          }
+                       }
+
+                       if (bSqIsTaken) {
+                          invalidConnections++;
+                       } else {
+                          validConnections++;
+                       }
                     }
                  }
               }
@@ -398,8 +479,19 @@ function App() {
 
             // Replenish palette if it wasn't connected before!
             if (!draggedTile.hasBeenConnected) {
-              const available = getAvailableSyllables(updated);
-              const newPaletteTile = generateRandomTile(available);
+              const availableBoardSyllables = getAvailableSyllables(updated);
+              let matching: string[] = [];
+              const currentPool = gameMode === 'match-syllables' ? SYLLABLES : SYLLABLES_WORD_MODE;
+              if (gameMode === 'match-syllables') {
+                matching = availableBoardSyllables;
+              } else {
+                currentPool.forEach(s => {
+                  if (availableBoardSyllables.some(abs => VALID_WORDS.has(abs + s) || VALID_WORDS.has(s + abs))) {
+                    matching.push(s);
+                  }
+                });
+              }
+              const newPaletteTile = generateRandomTile(matching, currentPool);
               updated = [...updated, newPaletteTile];
             }
             return updated;
@@ -465,13 +557,24 @@ function App() {
             style={{padding: '0.75rem 1.5rem', fontSize: '1.2rem', borderRadius: '12px', border: '1px solid var(--palette-border)', background: 'var(--palette-bg)', color: '#fff', cursor: 'pointer', fontWeight: 600}}
             onClick={() => {
               const onBoardTiles = tiles.filter(t => t.isOnBoard);
-              const available = getAvailableSyllables(tiles);
+              const availableBoardSyllables = getAvailableSyllables(tiles);
               
               const newPaletteTiles = Array.from({ length: 10 }).map((_, i) => {
-                if (i < 5 && available.length > 0) {
-                  return generateRandomTile(available);
+                const currentPool = gameMode === 'match-syllables' ? SYLLABLES : SYLLABLES_WORD_MODE;
+                if (i < 5 && availableBoardSyllables.length > 0) {
+                  let matching: string[] = [];
+                  if (gameMode === 'match-syllables') {
+                    matching = availableBoardSyllables;
+                  } else {
+                    currentPool.forEach(s => {
+                      if (availableBoardSyllables.some(abs => VALID_WORDS.has(abs + s) || VALID_WORDS.has(s + abs))) {
+                        matching.push(s);
+                      }
+                    });
+                  }
+                  return generateRandomTile(matching, currentPool);
                 }
-                return generateRandomTile();
+                return generateRandomTile(undefined, currentPool);
               });
               
               setTiles([...onBoardTiles, ...newPaletteTiles]);
@@ -558,6 +661,51 @@ function App() {
           ))}
         </div>
       </div>
+
+      <button 
+        className="settings-btn glass"
+        onClick={() => setIsSettingsOpen(true)}
+      >
+        <Settings size={32} />
+      </button>
+
+      {isSettingsOpen && (
+        <div className="modal-overlay" onClick={() => setIsSettingsOpen(false)}>
+          <div className="modal-content glass" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Ustawienia</h2>
+              <button className="close-btn" onClick={() => setIsSettingsOpen(false)}>
+                <X size={24} />
+              </button>
+            </div>
+            <div className="modal-body">
+              <h3>Tryb gry</h3>
+              <div className="mode-options">
+                <button 
+                  className={`mode-option ${gameMode === 'match-syllables' ? 'active' : ''}`}
+                  onClick={() => setGameMode('match-syllables')}
+                >
+                  <div className="mode-info">
+                    <span className="mode-name">Dopasowanie tych samych sylab</span>
+                    <span className="mode-description">Tradycyjna gra w domino, łączymy identyczne sylaby.</span>
+                  </div>
+                  {gameMode === 'match-syllables' && <Check className="check-icon" />}
+                </button>
+                <button 
+                  className={`mode-option ${gameMode === 'build-words' ? 'active' : ''}`}
+                  onClick={() => setGameMode('build-words')}
+                >
+                  <div className="mode-info">
+                    <span className="mode-name">Łączenie sylab w wyrazy</span>
+                    <span className="mode-description">Twórz polskie słowa z dostępnych sylab.</span>
+                  </div>
+                  {gameMode === 'build-words' && <Check className="check-icon" />}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
