@@ -21,6 +21,20 @@ const SYLLABLES_WORD_MODE = SYLLABLES.filter(s =>
   Array.from(VALID_WORDS).some(word => word.includes(s))
 );
 
+/** In build-words mode, returns syllables that can be placed as the SECOND syllable 
+ * of a word (i.e., there exists a boardSyl where boardSyl+s is a valid word) */
+const getRightSyllableCompletions = (boardSyllables: string[]): string[] => {
+  const completions = new Set<string>();
+  for (const boardSyl of boardSyllables) {
+    for (const s of SYLLABLES_WORD_MODE) {
+      if (VALID_WORDS.has(boardSyl + s)) {
+        completions.add(s);
+      }
+    }
+  }
+  return Array.from(completions);
+};
+
 interface TileData {
   id: string;
   leftSyllable: string;
@@ -135,13 +149,9 @@ function App() {
              if (gameMode === 'match-syllables') {
                 hasMatch = paletteTiles.some(pt => availableBoardSyllables.includes(pt.leftSyllable) || availableBoardSyllables.includes(pt.rightSyllable));
              } else {
-                // Word mode: check if any palette syllable forms a word with any board syllable
-                hasMatch = paletteTiles.some(pt => 
-                   availableBoardSyllables.some(abs => 
-                      VALID_WORDS.has(abs + pt.leftSyllable) || VALID_WORDS.has(pt.leftSyllable + abs) ||
-                      VALID_WORDS.has(abs + pt.rightSyllable) || VALID_WORDS.has(pt.rightSyllable + abs)
-                   )
-                );
+                // Word mode: check if any palette tile has a right syllable completing a word
+                const rightCompletions = getRightSyllableCompletions(availableBoardSyllables);
+                hasMatch = paletteTiles.some(pt => rightCompletions.includes(pt.rightSyllable));
              }
 
              if (!hasMatch) {
@@ -150,15 +160,20 @@ function App() {
                      const pIndex = updated.findIndex(t => !t.isOnBoard);
                      if (pIndex !== -1) {
                          // Find a matching syllable for the new tile
-                         let matching: string[] = [];
                          const currentPool = gameMode === 'match-syllables' ? SYLLABLES : SYLLABLES_WORD_MODE;
-                            // Word mode: Find syllables that form words with available board syllables
-                            currentPool.forEach(s => {
-                               if (availableBoardSyllables.some(abs => VALID_WORDS.has(abs + s) || VALID_WORDS.has(s + abs))) {
-                                  matching.push(s);
-                               }
-                            });
-                         updated[pIndex] = generateRandomTile(matching, currentPool);
+                         let matching: string[] = [];
+                         if (gameMode === 'match-syllables') {
+                            matching = availableBoardSyllables;
+                         } else {
+                            // Prioritize right-syllable completions (board_syl + right_syl = word)
+                            matching = getRightSyllableCompletions(availableBoardSyllables);
+                         }
+                         // Generate tile ensuring the RIGHT syllable comes from matching
+                         const tile = generateRandomTile(undefined, currentPool);
+                         if (matching.length > 0) {
+                            tile.rightSyllable = matching[Math.floor(Math.random() * matching.length)];
+                         }
+                         updated[pIndex] = tile;
                      }
                      return updated;
                  });
@@ -480,18 +495,18 @@ function App() {
             // Replenish palette if it wasn't connected before!
             if (!draggedTile.hasBeenConnected) {
               const availableBoardSyllables = getAvailableSyllables(updated);
-              let matching: string[] = [];
               const currentPool = gameMode === 'match-syllables' ? SYLLABLES : SYLLABLES_WORD_MODE;
+              let rightMatching: string[] = [];
               if (gameMode === 'match-syllables') {
-                matching = availableBoardSyllables;
+                rightMatching = availableBoardSyllables;
               } else {
-                currentPool.forEach(s => {
-                  if (availableBoardSyllables.some(abs => VALID_WORDS.has(abs + s) || VALID_WORDS.has(s + abs))) {
-                    matching.push(s);
-                  }
-                });
+                rightMatching = getRightSyllableCompletions(availableBoardSyllables);
               }
-              const newPaletteTile = generateRandomTile(matching, currentPool);
+              // Build a tile whose RIGHT syllable is guaranteed to complete a word
+              const newPaletteTile = generateRandomTile(undefined, currentPool);
+              if (rightMatching.length > 0) {
+                newPaletteTile.rightSyllable = rightMatching[Math.floor(Math.random() * rightMatching.length)];
+              }
               updated = [...updated, newPaletteTile];
             }
             return updated;
@@ -561,18 +576,18 @@ function App() {
               
               const newPaletteTiles = Array.from({ length: 10 }).map((_, i) => {
                 const currentPool = gameMode === 'match-syllables' ? SYLLABLES : SYLLABLES_WORD_MODE;
-                if (i < 5 && availableBoardSyllables.length > 0) {
-                  let matching: string[] = [];
+                if (availableBoardSyllables.length > 0) {
                   if (gameMode === 'match-syllables') {
-                    matching = availableBoardSyllables;
+                    if (i < 5) return generateRandomTile(availableBoardSyllables, currentPool);
                   } else {
-                    currentPool.forEach(s => {
-                      if (availableBoardSyllables.some(abs => VALID_WORDS.has(abs + s) || VALID_WORDS.has(s + abs))) {
-                        matching.push(s);
-                      }
-                    });
+                    // For first 5 tiles in word mode, guarantee right syllable completes a word
+                    const rightMatching = getRightSyllableCompletions(availableBoardSyllables);
+                    if (i < 5 && rightMatching.length > 0) {
+                      const tile = generateRandomTile(undefined, currentPool);
+                      tile.rightSyllable = rightMatching[Math.floor(Math.random() * rightMatching.length)];
+                      return tile;
+                    }
                   }
-                  return generateRandomTile(matching, currentPool);
                 }
                 return generateRandomTile(undefined, currentPool);
               });
