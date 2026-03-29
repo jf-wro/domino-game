@@ -149,9 +149,9 @@ function App() {
              if (gameMode === 'match-syllables') {
                 hasMatch = paletteTiles.some(pt => availableBoardSyllables.includes(pt.leftSyllable) || availableBoardSyllables.includes(pt.rightSyllable));
              } else {
-                // Word mode: check if any palette tile has a right syllable completing a word
-                const rightCompletions = getRightSyllableCompletions(availableBoardSyllables);
-                hasMatch = paletteTiles.some(pt => rightCompletions.includes(pt.rightSyllable));
+                // Word mode: check if any palette tile has a LEFT syllable completing a word (board_syl + left_syl = word)
+                const leftCompletions = getRightSyllableCompletions(availableBoardSyllables);
+                hasMatch = paletteTiles.some(pt => leftCompletions.includes(pt.leftSyllable));
              }
 
              if (!hasMatch) {
@@ -165,13 +165,13 @@ function App() {
                          if (gameMode === 'match-syllables') {
                             matching = availableBoardSyllables;
                          } else {
-                            // Prioritize right-syllable completions (board_syl + right_syl = word)
+                            // Prioritize left-syllable completions (board_syl + left_syl = word)
                             matching = getRightSyllableCompletions(availableBoardSyllables);
                          }
-                         // Generate tile ensuring the RIGHT syllable comes from matching
+                         // Generate tile ensuring the LEFT syllable comes from matching
                          const tile = generateRandomTile(undefined, currentPool);
                          if (matching.length > 0) {
-                            tile.rightSyllable = matching[Math.floor(Math.random() * matching.length)];
+                            tile.leftSyllable = matching[Math.floor(Math.random() * matching.length)];
                          }
                          updated[pIndex] = tile;
                      }
@@ -496,16 +496,16 @@ function App() {
             if (!draggedTile.hasBeenConnected) {
               const availableBoardSyllables = getAvailableSyllables(updated);
               const currentPool = gameMode === 'match-syllables' ? SYLLABLES : SYLLABLES_WORD_MODE;
-              let rightMatching: string[] = [];
+              let leftMatching: string[] = [];
               if (gameMode === 'match-syllables') {
-                rightMatching = availableBoardSyllables;
+                leftMatching = availableBoardSyllables;
               } else {
-                rightMatching = getRightSyllableCompletions(availableBoardSyllables);
+                leftMatching = getRightSyllableCompletions(availableBoardSyllables);
               }
-              // Build a tile whose RIGHT syllable is guaranteed to complete a word
+              // Build a tile whose LEFT syllable is guaranteed to complete a word (board_syl + left_syl = word)
               const newPaletteTile = generateRandomTile(undefined, currentPool);
-              if (rightMatching.length > 0) {
-                newPaletteTile.rightSyllable = rightMatching[Math.floor(Math.random() * rightMatching.length)];
+              if (leftMatching.length > 0) {
+                newPaletteTile.leftSyllable = leftMatching[Math.floor(Math.random() * leftMatching.length)];
               }
               updated = [...updated, newPaletteTile];
             }
@@ -580,11 +580,11 @@ function App() {
                   if (gameMode === 'match-syllables') {
                     if (i < 5) return generateRandomTile(availableBoardSyllables, currentPool);
                   } else {
-                    // For first 5 tiles in word mode, guarantee right syllable completes a word
-                    const rightMatching = getRightSyllableCompletions(availableBoardSyllables);
-                    if (i < 5 && rightMatching.length > 0) {
+                    // For first 5 tiles in word mode, guarantee LEFT syllable completes a word (board_syl + left_syl = word)
+                    const leftMatching = getRightSyllableCompletions(availableBoardSyllables);
+                    if (i < 5 && leftMatching.length > 0) {
                       const tile = generateRandomTile(undefined, currentPool);
-                      tile.rightSyllable = rightMatching[Math.floor(Math.random() * rightMatching.length)];
+                      tile.leftSyllable = leftMatching[Math.floor(Math.random() * leftMatching.length)];
                       return tile;
                     }
                   }
