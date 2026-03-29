@@ -11,10 +11,10 @@ const VOWELS = new Set(['a', 'e', 'i', 'o', 'u', 'y', 'ą', 'ę', 'ó']);
 
 const VALID_WORDS = new Set([
   'mama', 'mapa', 'masa', 'maja', 'maca', 'dama', 'data', 'daga', 'baba', 'baca', 
-  'baza', 'tama', 'tata', 'taka', 'laba', 'lama', 'lara', 'lawa', 'kapa', 'kara', 
+  'baza', 'tama', 'tara', 'tata', 'taka', 'laba', 'lama', 'lara', 'lawa', 'kapa', 'kara', 
   'kasa', 'kawa', 'paka', 'papa', 'para', 'raca', 'rada', 'rama', 'rana', 
   'rasa', 'rata', 'saga', 'sala', 'sama', 'waga', 'wata', 'wada', 'waza', 'fala', 
-  'gala', 'gama', 'gapa', 'gaza', 'hala', 'jama', 'jana', 'jawa'
+  'gala', 'gama', 'gapa', 'gaza', 'hala', 'jama', 'jana', 'jawa', 'mata'
 ]);
 
 const SYLLABLES_WORD_MODE = SYLLABLES.filter(s => 
