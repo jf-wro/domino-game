@@ -14,11 +14,12 @@ const VALID_WORDS = new Set([
   'baza', 'tama', 'tara', 'tata', 'taka', 'laba', 'lama', 'lara', 'lawa', 'kapa', 'kara', 
   'kasa', 'kawa', 'paka', 'papa', 'para', 'raca', 'rada', 'rama', 'rana', 
   'rasa', 'rata', 'saga', 'sala', 'sama', 'waga', 'wata', 'wada', 'waza', 'fala', 
-  'gala', 'gama', 'gapa', 'gaza', 'hala', 'jama', 'jana', 'jawa', 'mata', 'faza', 'naga'
+  'gala', 'gama', 'gapa', 'gaza', 'hala', 'jama', 'jana', 'jawa', 'mata', 'faza'
 ]);
 
+// Only syllables that can START a valid word — prevents dead-ends when exposed on the right side of board
 const SYLLABLES_WORD_MODE = SYLLABLES.filter(s => 
-  Array.from(VALID_WORDS).some(word => word.includes(s))
+  Array.from(VALID_WORDS).some(word => word.startsWith(s))
 );
 
 /** In build-words mode, returns syllables that can be placed as the SECOND syllable 
