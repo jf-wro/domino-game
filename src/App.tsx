@@ -26,7 +26,7 @@ const VALID_WORDS = new Set([
   // ła-
   'łapa', 'łata', 'ława',
   // ma-
-  'mama', 'mata', 'maki',
+  'mama', 'mata', 'maki', 'mapa',
   // no-
   'noce', 'noga', 'nosy',
   // ra-
