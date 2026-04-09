@@ -114,6 +114,50 @@ const getAvailableSyllables = (tiles: TileData[]): string[] => {
   return available;
 };
 
+/** In build-words mode, returns syllables from board squares that have open space to their RIGHT */
+const getRightExposedSyllables = (tiles: TileData[]): string[] => {
+  const boardTiles = tiles.filter(t => t.isOnBoard && t.hasBeenConnected);
+  if (boardTiles.length === 0) return [];
+
+  const allSquares: { x: number, y: number, syl: string, tileId: string }[] = [];
+  for (const t of boardTiles) {
+    const rot = (t.rotation % 360 + 360) % 360;
+    const rad = rot * Math.PI / 180;
+    const cx = (t.x || 0) + 112;
+    const cy = (t.y || 0) + 56;
+    allSquares.push({
+      x: Math.round(cx - 56 * Math.cos(rad)),
+      y: Math.round(cy - 56 * Math.sin(rad)),
+      syl: t.leftSyllable,
+      tileId: t.id
+    });
+    allSquares.push({
+      x: Math.round(cx + 56 * Math.cos(rad)),
+      y: Math.round(cy + 56 * Math.sin(rad)),
+      syl: t.rightSyllable,
+      tileId: t.id
+    });
+  }
+
+  const exposed: string[] = [];
+  for (const sq of allSquares) {
+    let hasRight = false;
+    for (const other of allSquares) {
+      if (sq.tileId === other.tileId) continue;
+      const dx = other.x - sq.x;
+      const dy = Math.abs(other.y - sq.y);
+      if (dx > 100 && dx < 120 && dy < 10) {
+        hasRight = true;
+        break;
+      }
+    }
+    if (!hasRight) {
+      exposed.push(sq.syl);
+    }
+  }
+  return exposed;
+};
+
 const ColoredSyllable: React.FC<{ text: string }> = ({ text }) => {
   return (
     <>
@@ -157,9 +201,10 @@ function App() {
             });
           }
         } else {
-          // Word mode: ensure EVERY exposed board syllable has at least one palette tile whose LEFT can follow it
+          // Word mode: ensure at least one palette tile can form a word to the RIGHT of an exposed board syllable
           const currentPool = SYLLABLES_WORD_MODE;
-          const uncoveredSyllables = availableBoardSyllables.filter(boardSyl => {
+          const rightExposed = getRightExposedSyllables(tiles);
+          const uncoveredSyllables = rightExposed.filter(boardSyl => {
             const completions = currentPool.filter(s => VALID_WORDS.has(boardSyl + s));
             return completions.length > 0 && !paletteTiles.some(pt => completions.includes(pt.leftSyllable));
           });
@@ -433,42 +478,32 @@ function App() {
                   }
                 }
               } else {
-                // WORD MODE
-                let word = '';
-                if (Math.abs(Asq.x - Bsq.x) < 10) {
-                  // Vertical connection
-                  if (Asq.y < Bsq.y) {
-                    word = Asq.syl + Bsq.syl;
-                  } else {
-                    word = Bsq.syl + Asq.syl;
-                  }
-                } else {
-                  // Horizontal connection
-                  if (Asq.x < Bsq.x) {
-                    word = Asq.syl + Bsq.syl;
-                  } else {
-                    word = Bsq.syl + Asq.syl;
-                  }
-                }
+                // WORD MODE — only allow placing to the RIGHT of existing tiles
+                const isHorizontal = Math.abs(Asq.y - Bsq.y) < 10;
+                const isToTheRight = Asq.x > Bsq.x;
 
-                if (!VALID_WORDS.has(word)) {
+                if (!isHorizontal || !isToTheRight) {
+                  // Vertical or left-side connection → reject
                   invalidConnections++;
                 } else {
-                  // Check if board square is already taken
-                  let bSqIsTaken = false;
-                  for (const Csq of allBoardSquares) {
-                    if (Csq.tileId === Bsq.tileId) continue;
-                    const cDist = Math.abs(Bsq.x - Csq.x) + Math.abs(Bsq.y - Csq.y);
-                    if (cDist > 100 && cDist < 120) {
-                      bSqIsTaken = true;
-                      break;
-                    }
-                  }
-
-                  if (bSqIsTaken) {
+                  const word = Bsq.syl + Asq.syl;
+                  if (!VALID_WORDS.has(word)) {
                     invalidConnections++;
                   } else {
-                    validConnections++;
+                    let bSqIsTaken = false;
+                    for (const Csq of allBoardSquares) {
+                      if (Csq.tileId === Bsq.tileId) continue;
+                      const cDist = Math.abs(Bsq.x - Csq.x) + Math.abs(Bsq.y - Csq.y);
+                      if (cDist > 100 && cDist < 120) {
+                        bSqIsTaken = true;
+                        break;
+                      }
+                    }
+                    if (bSqIsTaken) {
+                      invalidConnections++;
+                    } else {
+                      validConnections++;
+                    }
                   }
                 }
               }
@@ -496,13 +531,14 @@ function App() {
 
             // Replenish palette if it wasn't connected before!
             if (!draggedTile.hasBeenConnected) {
-              const availableBoardSyllables = getAvailableSyllables(updated);
               const currentPool = gameMode === 'match-syllables' ? SYLLABLES : SYLLABLES_WORD_MODE;
               let leftMatching: string[] = [];
               if (gameMode === 'match-syllables') {
+                const availableBoardSyllables = getAvailableSyllables(updated);
                 leftMatching = availableBoardSyllables;
               } else {
-                leftMatching = getRightSyllableCompletions(availableBoardSyllables);
+                const rightExposed = getRightExposedSyllables(updated);
+                leftMatching = getRightSyllableCompletions(rightExposed);
               }
               // Build a tile whose LEFT syllable is guaranteed to complete a word (board_syl + left_syl = word)
               const newPaletteTile = generateRandomTile(undefined, currentPool);
@@ -589,8 +625,9 @@ function App() {
                   }
                 }
               } else {
-                // Word mode: one guaranteed tile per exposed board syllable
-                for (const boardSyl of availableBoardSyllables) {
+                // Word mode: one guaranteed tile per right-exposed board syllable
+                const rightExposed = getRightExposedSyllables(tiles);
+                for (const boardSyl of rightExposed) {
                   const completions = currentPool.filter(s => VALID_WORDS.has(boardSyl + s));
                   if (completions.length > 0 && newPaletteTiles.length < 6) {
                     const tile = generateRandomTile(undefined, currentPool);
