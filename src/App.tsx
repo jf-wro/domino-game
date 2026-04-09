@@ -492,11 +492,13 @@ function App() {
                   word = Bsq.syl + Asq.syl;
                   isAllowedDirection = true;
                 } else if (isVertical) {
-                  // Vertical: word = top_syl + bottom_syl
-                  if (Asq.y > Bsq.y) {
-                    word = Bsq.syl + Asq.syl; // board is above, new is below
+                  // Vertical: check BOTH reading directions (top→bottom and bottom→top)
+                  const topSyl = Asq.y < Bsq.y ? Asq.syl : Bsq.syl;
+                  const bottomSyl = Asq.y < Bsq.y ? Bsq.syl : Asq.syl;
+                  if (VALID_WORDS.has(topSyl + bottomSyl)) {
+                    word = topSyl + bottomSyl;
                   } else {
-                    word = Asq.syl + Bsq.syl; // new is above, board is below
+                    word = bottomSyl + topSyl;
                   }
                   isAllowedDirection = true;
                 }
