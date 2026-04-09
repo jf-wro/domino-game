@@ -450,6 +450,7 @@ function App() {
         let validConnections = 0;
         let invalidConnections = 0;
 
+
         for (const Asq of [A_sq1, A_sq2]) {
           for (const Bsq of allBoardSquares) {
             const dist = Math.abs(Asq.x - Bsq.x) + Math.abs(Asq.y - Bsq.y);
@@ -479,13 +480,11 @@ function App() {
                 }
               } else {
                 // WORD MODE: new tile's square must be horizontally to the RIGHT of board square.
-                // This check works correctly regardless of tile rotation.
                 const isHorizontal = Math.abs(Asq.y - Bsq.y) < 10;
                 const isDraggedToRight = Asq.x > Bsq.x;
 
                 if (!isHorizontal || !isDraggedToRight) {
-                  // Vertical or left-side connection → reject
-                  invalidConnections++;
+                  // Vertical or left-side touch — simply ignore (not an error, just not a valid connection point)
                 } else {
                   const word = Bsq.syl + Asq.syl;
                   if (!VALID_WORDS.has(word)) {
@@ -514,6 +513,7 @@ function App() {
           }
         }
 
+
         let isValid = !isOverlapping && invalidConnections === 0 && !isOverPalette;
         let hasNeighbor = validConnections > 0;
 
@@ -521,6 +521,7 @@ function App() {
           isValid = true;
           hasNeighbor = true; // Starter case
         }
+
 
         if (isValid && hasNeighbor) {
           // ACCEPT CONNECTION
