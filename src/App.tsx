@@ -3,24 +3,44 @@ import './App.css';
 import { RotateCw, Settings, X, Check } from 'lucide-react';
 
 const SYLLABLES = [
-  'ma', 'da', 'ba', 'ta', 'la', 'ka', 'pa', 'ra', 'sa', 'za',
-  'na', 'wa', 'fa', 'ga', 'ha', 'ja', 'ca'
+  'ba', 'bu', 'ca', 'ce', 'da', 'ga', 'ja', 'jo', 'ka', 'ki',
+  'ko', 'la', 'ła', 'ma', 'na', 'no', 'pa', 'ra', 'sa', 'sy',
+  'ta', 'to', 'ty', 'wa', 'za', 'ło', 'ra', 'na'
 ];
 
 const VOWELS = new Set(['a', 'e', 'i', 'o', 'u', 'y', 'ą', 'ę', 'ó']);
 
 const VALID_WORDS = new Set([
-  'mama', 'mapa', 'masa', 'maja', 'maca', 'dama', 'data', 'daga', 'baba', 'baca',
-  'baza', 'tama', 'tara', 'tata', 'taka', 'laba', 'lama', 'lara', 'lawa', 'kapa', 'kara',
-  'kasa', 'kawa', 'paka', 'papa', 'para', 'raca', 'rada', 'rama', 'rana',
-  'rasa', 'rata', 'saga', 'sala', 'sama', 'waga', 'wata', 'wada', 'waza', 'fala',
-  'gala', 'gama', 'gapa', 'gaza', 'hala', 'jama', 'jawa', 'mata', 'faza', 'gafa'
+  // ba-
+  'baba', 'baza', 'baca',
+  // bu-
+  'buda', 'buty',
+  // ja-
+  'jama', 'jajo',
+  // ka-
+  'kara', 'kasa', 'kawa',
+  // ko-
+  'koło', 'koza', 'koty', 'kosa',
+  // la-
+  'lama', 'lato',
+  // ła-
+  'łapa', 'łata', 'ława',
+  // ma-
+  'mama', 'mata', 'maki',
+  // no-
+  'noce', 'noga', 'nosy',
+  // ra-
+  'rada', 'rama', 'rasa', 'rana',
+  // ta-
+  'taca', 'tama', 'tata',
+  // wa-
+  'wada', 'waga', 'wata', 'waza'
 ]);
 
-// Only syllables that can START a valid word — prevents dead-ends when exposed on the right side of board
-const SYLLABLES_WORD_MODE = SYLLABLES.filter(s =>
-  Array.from(VALID_WORDS).some(word => word.startsWith(s))
-);
+// Only syllables that can appear in valid words
+const SYLLABLES_WORD_MODE = [...new Set(
+  Array.from(VALID_WORDS).flatMap(word => [word.slice(0, 2), word.slice(2)])
+)];
 
 /** In build-words mode, returns syllables that can complete a word with any exposed board syllable.
  * Checks both boardSyl+s (right/down) and s+boardSyl (up) directions. */
