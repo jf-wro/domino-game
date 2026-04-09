@@ -456,6 +456,7 @@ function App() {
         let isOverlapping = false;
         let validConnections = 0;
         let invalidConnections = 0;
+        let touchedAnyBoardSquare = false;
 
 
         for (const Asq of [A_sq1, A_sq2]) {
@@ -465,6 +466,7 @@ function App() {
               isOverlapping = true;
             } else if (dist > 100 && dist < 120) {
               // Touching!
+              touchedAnyBoardSquare = true;
               if (gameMode === 'match-syllables') {
                 if (Asq.syl !== Bsq.syl) {
                   invalidConnections++;
@@ -567,8 +569,9 @@ function App() {
             }
             return updated;
           });
-        } else if (isValid && !hasNeighbor) {
+        } else if (isValid && !hasNeighbor && !(gameMode === 'build-words' && touchedAnyBoardSquare)) {
           // FREE PLACEMENT (No connection made, just dropped freely on the board)
+          // In word mode: blocked if touching any board square (prevents visual false-connections)
           setTiles(prev => prev.map(t =>
             t.id === draggingId ? { ...t, x: snappedX, y: snappedY } : t
           ));
