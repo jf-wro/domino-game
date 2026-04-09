@@ -451,6 +451,7 @@ function App() {
         let touchedAnyBoardSquare = false;
 
 
+
         for (const Asq of [A_sq1, A_sq2]) {
           for (const Bsq of allBoardSquares) {
             const dist = Math.abs(Asq.x - Bsq.x) + Math.abs(Asq.y - Bsq.y);
