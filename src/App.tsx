@@ -517,7 +517,7 @@ function App() {
         let isValid = !isOverlapping && invalidConnections === 0 && !isOverPalette;
         let hasNeighbor = validConnections > 0;
 
-        if (otherTiles.length === 0 && !isOverPalette) {
+        if (otherTiles.length === 0 && !isOverPalette && invalidConnections === 0) {
           isValid = true;
           hasNeighbor = true; // Starter case
         }
