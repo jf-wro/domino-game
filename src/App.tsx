@@ -31,10 +31,16 @@ const VALID_WORDS = new Set([
   'noce', 'noga', 'nosy',
   // ra-
   'rada', 'rama', 'rasa', 'rana',
+  // ry-
+  'ryba',
+  // so-
+  'sowa',
   // ta-
   'taca', 'tama', 'tata',
   // wa-
-  'wada', 'waga', 'wata', 'waza'
+  'wada', 'waga', 'wata', 'waza',
+  // wo-
+  'woda'
 ]);
 
 // Only syllables that can appear in valid words
