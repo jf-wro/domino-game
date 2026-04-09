@@ -112,15 +112,13 @@ const getAvailableSyllables = (tiles: TileData[]): string[] => {
   }
   return available;
 };
-
-/** In build-words mode, returns syllables from board squares that have at least one open
-/** In build-words mode, returns RIGHT syllables from board tiles that have at least one open
- * connection direction (right, top, or bottom). Left squares are never connectable. */
+/** In build-words mode, returns syllables from board squares that have no neighbor
+ * from another tile (i.e., they are "free ends" available for new connections). */
 const getExposedSyllables = (tiles: TileData[]): string[] => {
   const boardTiles = tiles.filter(t => t.isOnBoard && t.hasBeenConnected);
   if (boardTiles.length === 0) return [];
 
-  const allSquares: { x: number, y: number, syl: string, tileId: string, isRight: boolean }[] = [];
+  const allSquares: { x: number, y: number, syl: string, tileId: string }[] = [];
   for (const t of boardTiles) {
     const rot = (t.rotation % 360 + 360) % 360;
     const rad = rot * Math.PI / 180;
@@ -130,33 +128,29 @@ const getExposedSyllables = (tiles: TileData[]): string[] => {
       x: Math.round(cx - 56 * Math.cos(rad)),
       y: Math.round(cy - 56 * Math.sin(rad)),
       syl: t.leftSyllable,
-      tileId: t.id,
-      isRight: false
+      tileId: t.id
     });
     allSquares.push({
       x: Math.round(cx + 56 * Math.cos(rad)),
       y: Math.round(cy + 56 * Math.sin(rad)),
       syl: t.rightSyllable,
-      tileId: t.id,
-      isRight: true
+      tileId: t.id
     });
   }
 
   const exposed: string[] = [];
   for (const sq of allSquares) {
-    // Only RIGHT squares can be connection targets
-    if (!sq.isRight) continue;
-
-    let hasRight = false, hasTop = false, hasBottom = false;
+    // A square is exposed (free end) if it has NO neighbor from another tile
+    let hasNeighborFromOtherTile = false;
     for (const other of allSquares) {
       if (sq.tileId === other.tileId) continue;
-      const dx = other.x - sq.x;
-      const dy = other.y - sq.y;
-      if (dx > 100 && dx < 120 && Math.abs(dy) < 10) hasRight = true;
-      if (Math.abs(dx) < 10 && dy < -100 && dy > -120) hasTop = true;
-      if (Math.abs(dx) < 10 && dy > 100 && dy < 120) hasBottom = true;
+      const dist = Math.abs(sq.x - other.x) + Math.abs(sq.y - other.y);
+      if (dist > 100 && dist < 120) {
+        hasNeighborFromOtherTile = true;
+        break;
+      }
     }
-    if (!hasRight || !hasTop || !hasBottom) {
+    if (!hasNeighborFromOtherTile) {
       exposed.push(sq.syl);
     }
   }
@@ -431,7 +425,7 @@ function App() {
 
         const otherTiles = tiles.filter(t => t.isOnBoard && t.id !== draggingId);
 
-        const allBoardSquares: { x: number, y: number, syl: string, tileId: string, isRight: boolean }[] = [];
+        const allBoardSquares: { x: number, y: number, syl: string, tileId: string }[] = [];
         for (const t of otherTiles) {
           const trot = (t.rotation % 360 + 360) % 360;
           const trad = trot * Math.PI / 180;
@@ -441,15 +435,13 @@ function App() {
             x: Math.round(tcx - 56 * Math.cos(trad)),
             y: Math.round(tcy - 56 * Math.sin(trad)),
             syl: t.leftSyllable,
-            tileId: t.id,
-            isRight: false
+            tileId: t.id
           });
           allBoardSquares.push({
             x: Math.round(tcx + 56 * Math.cos(trad)),
             y: Math.round(tcy + 56 * Math.sin(trad)),
             syl: t.rightSyllable,
-            tileId: t.id,
-            isRight: true
+            tileId: t.id
           });
         }
 
@@ -488,10 +480,20 @@ function App() {
                   }
                 }
               } else {
-                // WORD MODE: only RIGHT squares of board tiles can accept connections
-                if (!Bsq.isRight) {
-                  // Bsq is the LEFT square of its tile — no connections allowed from any direction
-                  // Just ignore (not an error)
+                // WORD MODE: check if board square already has a neighbor from another tile
+                // If it does, this square is "used up" and can't accept new connections
+                let bSqHasNeighbor = false;
+                for (const Csq of allBoardSquares) {
+                  if (Csq.tileId === Bsq.tileId) continue;
+                  const cDist = Math.abs(Bsq.x - Csq.x) + Math.abs(Bsq.y - Csq.y);
+                  if (cDist > 100 && cDist < 120) {
+                    bSqHasNeighbor = true;
+                    break;
+                  }
+                }
+
+                if (bSqHasNeighbor) {
+                  // Board square already connected — ignore (not an error)
                 } else {
                   const isHorizontal = Math.abs(Asq.y - Bsq.y) < 10;
                   const isVertical = Math.abs(Asq.x - Bsq.x) < 10;
@@ -501,7 +503,7 @@ function App() {
                   let isAllowedDirection = false;
 
                   if (isHorizontal && isDraggedToRight) {
-                    // Right-side: word = board_right_syl + new_syl
+                    // Right-side: word = board_syl + new_syl
                     word = Bsq.syl + Asq.syl;
                     isAllowedDirection = true;
                   } else if (isVertical) {
