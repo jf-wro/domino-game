@@ -450,7 +450,10 @@ function App() {
         let validConnections = 0;
         let invalidConnections = 0;
 
-        for (const Asq of [A_sq1, A_sq2]) {
+        for (let sqIdx = 0; sqIdx < 2; sqIdx++) {
+          const Asq = sqIdx === 0 ? A_sq1 : A_sq2;
+          const isLeftSquareOfDragged = sqIdx === 0;
+
           for (const Bsq of allBoardSquares) {
             const dist = Math.abs(Asq.x - Bsq.x) + Math.abs(Asq.y - Bsq.y);
             if (dist < 10) {
@@ -478,31 +481,38 @@ function App() {
                   }
                 }
               } else {
-                // WORD MODE — only allow placing to the RIGHT of existing tiles
-                const isHorizontal = Math.abs(Asq.y - Bsq.y) < 10;
-                const isToTheRight = Asq.x > Bsq.x;
-
-                if (!isHorizontal || !isToTheRight) {
-                  // Vertical or left-side connection → reject
+                // WORD MODE: only the LEFT square (sqIdx=0) of the dragged tile may connect,
+                // horizontally, placed to the RIGHT of a board square.
+                if (!isLeftSquareOfDragged) {
+                  // Right square (A_sq2) touching anything → always invalid in word mode
                   invalidConnections++;
                 } else {
-                  const word = Bsq.syl + Asq.syl;
-                  if (!VALID_WORDS.has(word)) {
+                  const isHorizontal = Math.abs(Asq.y - Bsq.y) < 10;
+                  const isDraggedToRight = Asq.x > Bsq.x;
+
+                  if (!isHorizontal || !isDraggedToRight) {
                     invalidConnections++;
                   } else {
-                    let bSqIsTaken = false;
-                    for (const Csq of allBoardSquares) {
-                      if (Csq.tileId === Bsq.tileId) continue;
-                      const cDist = Math.abs(Bsq.x - Csq.x) + Math.abs(Bsq.y - Csq.y);
-                      if (cDist > 100 && cDist < 120) {
-                        bSqIsTaken = true;
-                        break;
-                      }
-                    }
-                    if (bSqIsTaken) {
+                    const word = Bsq.syl + Asq.syl;
+                    if (!VALID_WORDS.has(word)) {
                       invalidConnections++;
                     } else {
-                      validConnections++;
+                      // Board square must have open right side specifically
+                      let bSqRightTaken = false;
+                      for (const Csq of allBoardSquares) {
+                        if (Csq.tileId === Bsq.tileId) continue;
+                        const dx = Csq.x - Bsq.x;
+                        const dy = Math.abs(Csq.y - Bsq.y);
+                        if (dx > 100 && dx < 120 && dy < 10) {
+                          bSqRightTaken = true;
+                          break;
+                        }
+                      }
+                      if (bSqRightTaken) {
+                        invalidConnections++;
+                      } else {
+                        validConnections++;
+                      }
                     }
                   }
                 }
