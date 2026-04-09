@@ -114,12 +114,13 @@ const getAvailableSyllables = (tiles: TileData[]): string[] => {
 };
 
 /** In build-words mode, returns syllables from board squares that have at least one open
- * connection direction (right, top, or bottom — NOT left) */
+/** In build-words mode, returns RIGHT syllables from board tiles that have at least one open
+ * connection direction (right, top, or bottom). Left squares are never connectable. */
 const getExposedSyllables = (tiles: TileData[]): string[] => {
   const boardTiles = tiles.filter(t => t.isOnBoard && t.hasBeenConnected);
   if (boardTiles.length === 0) return [];
 
-  const allSquares: { x: number, y: number, syl: string, tileId: string }[] = [];
+  const allSquares: { x: number, y: number, syl: string, tileId: string, isRight: boolean }[] = [];
   for (const t of boardTiles) {
     const rot = (t.rotation % 360 + 360) % 360;
     const rad = rot * Math.PI / 180;
@@ -129,18 +130,23 @@ const getExposedSyllables = (tiles: TileData[]): string[] => {
       x: Math.round(cx - 56 * Math.cos(rad)),
       y: Math.round(cy - 56 * Math.sin(rad)),
       syl: t.leftSyllable,
-      tileId: t.id
+      tileId: t.id,
+      isRight: false
     });
     allSquares.push({
       x: Math.round(cx + 56 * Math.cos(rad)),
       y: Math.round(cy + 56 * Math.sin(rad)),
       syl: t.rightSyllable,
-      tileId: t.id
+      tileId: t.id,
+      isRight: true
     });
   }
 
   const exposed: string[] = [];
   for (const sq of allSquares) {
+    // Only RIGHT squares can be connection targets
+    if (!sq.isRight) continue;
+
     let hasRight = false, hasTop = false, hasBottom = false;
     for (const other of allSquares) {
       if (sq.tileId === other.tileId) continue;
@@ -150,7 +156,6 @@ const getExposedSyllables = (tiles: TileData[]): string[] => {
       if (Math.abs(dx) < 10 && dy < -100 && dy > -120) hasTop = true;
       if (Math.abs(dx) < 10 && dy > 100 && dy < 120) hasBottom = true;
     }
-    // Exposed if any allowed direction (right, top, bottom) is open
     if (!hasRight || !hasTop || !hasBottom) {
       exposed.push(sq.syl);
     }
@@ -426,7 +431,7 @@ function App() {
 
         const otherTiles = tiles.filter(t => t.isOnBoard && t.id !== draggingId);
 
-        const allBoardSquares: { x: number, y: number, syl: string, tileId: string }[] = [];
+        const allBoardSquares: { x: number, y: number, syl: string, tileId: string, isRight: boolean }[] = [];
         for (const t of otherTiles) {
           const trot = (t.rotation % 360 + 360) % 360;
           const trad = trot * Math.PI / 180;
@@ -436,13 +441,15 @@ function App() {
             x: Math.round(tcx - 56 * Math.cos(trad)),
             y: Math.round(tcy - 56 * Math.sin(trad)),
             syl: t.leftSyllable,
-            tileId: t.id
+            tileId: t.id,
+            isRight: false
           });
           allBoardSquares.push({
             x: Math.round(tcx + 56 * Math.cos(trad)),
             y: Math.round(tcy + 56 * Math.sin(trad)),
             syl: t.rightSyllable,
-            tileId: t.id
+            tileId: t.id,
+            isRight: true
           });
         }
 
@@ -479,36 +486,41 @@ function App() {
                   }
                 }
               } else {
-                // WORD MODE: allow right, up, and down connections (NOT left)
-                const isHorizontal = Math.abs(Asq.y - Bsq.y) < 10;
-                const isVertical = Math.abs(Asq.x - Bsq.x) < 10;
-                const isDraggedToRight = Asq.x > Bsq.x;
-
-                let word = '';
-                let isAllowedDirection = false;
-
-                if (isHorizontal && isDraggedToRight) {
-                  // Right-side: word = left_syl + right_syl
-                  word = Bsq.syl + Asq.syl;
-                  isAllowedDirection = true;
-                } else if (isVertical) {
-                  // Vertical: check BOTH reading directions (top→bottom and bottom→top)
-                  const topSyl = Asq.y < Bsq.y ? Asq.syl : Bsq.syl;
-                  const bottomSyl = Asq.y < Bsq.y ? Bsq.syl : Asq.syl;
-                  if (VALID_WORDS.has(topSyl + bottomSyl)) {
-                    word = topSyl + bottomSyl;
-                  } else {
-                    word = bottomSyl + topSyl;
-                  }
-                  isAllowedDirection = true;
-                }
-
-                if (!isAllowedDirection) {
-                  // Left-side horizontal touch — ignore
-                } else if (!VALID_WORDS.has(word)) {
-                  invalidConnections++;
+                // WORD MODE: only RIGHT squares of board tiles can accept connections
+                if (!Bsq.isRight) {
+                  // Bsq is the LEFT square of its tile — no connections allowed from any direction
+                  // Just ignore (not an error)
                 } else {
-                  validConnections++;
+                  const isHorizontal = Math.abs(Asq.y - Bsq.y) < 10;
+                  const isVertical = Math.abs(Asq.x - Bsq.x) < 10;
+                  const isDraggedToRight = Asq.x > Bsq.x;
+
+                  let word = '';
+                  let isAllowedDirection = false;
+
+                  if (isHorizontal && isDraggedToRight) {
+                    // Right-side: word = board_right_syl + new_syl
+                    word = Bsq.syl + Asq.syl;
+                    isAllowedDirection = true;
+                  } else if (isVertical) {
+                    // Vertical: check BOTH reading directions
+                    const topSyl = Asq.y < Bsq.y ? Asq.syl : Bsq.syl;
+                    const bottomSyl = Asq.y < Bsq.y ? Bsq.syl : Asq.syl;
+                    if (VALID_WORDS.has(topSyl + bottomSyl)) {
+                      word = topSyl + bottomSyl;
+                    } else {
+                      word = bottomSyl + topSyl;
+                    }
+                    isAllowedDirection = true;
+                  }
+
+                  if (!isAllowedDirection) {
+                    // Left-side horizontal touch — ignore
+                  } else if (!VALID_WORDS.has(word)) {
+                    invalidConnections++;
+                  } else {
+                    validConnections++;
+                  }
                 }
               }
             }
