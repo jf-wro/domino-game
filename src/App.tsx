@@ -144,7 +144,7 @@ const getExposedSyllables = (tiles: TileData[]): string[] => {
   const boardTiles = tiles.filter(t => t.isOnBoard && t.hasBeenConnected);
   if (boardTiles.length === 0) return [];
 
-  const allSquares: { x: number, y: number, syl: string, tileId: string }[] = [];
+  const allSquares: { x: number, y: number, syl: string, tileId: string, isRightSq: boolean }[] = [];
   for (const t of boardTiles) {
     const rot = (t.rotation % 360 + 360) % 360;
     const rad = rot * Math.PI / 180;
@@ -154,18 +154,23 @@ const getExposedSyllables = (tiles: TileData[]): string[] => {
       x: Math.round(cx - 56 * Math.cos(rad)),
       y: Math.round(cy - 56 * Math.sin(rad)),
       syl: t.leftSyllable,
-      tileId: t.id
+      tileId: t.id,
+      isRightSq: false
     });
     allSquares.push({
       x: Math.round(cx + 56 * Math.cos(rad)),
       y: Math.round(cy + 56 * Math.sin(rad)),
       syl: t.rightSyllable,
-      tileId: t.id
+      tileId: t.id,
+      isRightSq: true
     });
   }
 
   const exposed: string[] = [];
   for (const sq of allSquares) {
+    // Only the 'right/bottom' halves of tiles can serve as connection points for the next tile
+    if (!sq.isRightSq) continue;
+
     // A square is exposed (free end) if it has NO neighbor from another tile
     let hasNeighborFromOtherTile = false;
     for (const other of allSquares) {
