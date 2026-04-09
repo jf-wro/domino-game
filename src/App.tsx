@@ -22,7 +22,7 @@ const VALID_WORDS = new Set([
   // ko-
   'koło', 'koza', 'koty', 'kosa',
   // la-
-  'lama', 'lato',
+  'lama', 'lato', 'lawa',
   // ła-
   'łapa', 'łata', 'ława',
   // ma-
