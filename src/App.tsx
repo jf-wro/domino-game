@@ -15,6 +15,8 @@ const VALID_WORDS = new Set([
   'baba', 'baza', 'baca',
   // bu-
   'buda', 'buty',
+  // da-
+  'data',
   // ja-
   'jama', 'jajo', 'joga',
   // ka-
