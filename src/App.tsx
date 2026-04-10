@@ -71,6 +71,7 @@ interface TileData {
   isOnBoard: boolean;
   connectedTick?: number;
   hasBeenConnected?: boolean;
+  isSingleSyllable?: boolean;
 }
 
 const generateRandomTile = (matchingSyllables?: string[], pool: string[] = SYLLABLES): TileData => {
@@ -93,6 +94,19 @@ const generateRandomTile = (matchingSyllables?: string[], pool: string[] = SYLLA
     rotation: 0,
     isOnBoard: false,
     hasBeenConnected: false,
+  };
+};
+
+const generateSingleSylTile = (syl?: string, pool: string[] = SYLLABLES_WORD_MODE): TileData => {
+  const s = syl || pool[Math.floor(Math.random() * pool.length)];
+  return {
+    id: Math.random().toString(36).substr(2, 9),
+    leftSyllable: s,
+    rightSyllable: '',
+    rotation: 0,
+    isOnBoard: false,
+    hasBeenConnected: false,
+    isSingleSyllable: true,
   };
 };
 
@@ -144,33 +158,39 @@ const getExposedSyllables = (tiles: TileData[]): string[] => {
   const boardTiles = tiles.filter(t => t.isOnBoard && t.hasBeenConnected);
   if (boardTiles.length === 0) return [];
 
-  const allSquares: { x: number, y: number, syl: string, tileId: string, isRightSq: boolean }[] = [];
+  const allSquares: { x: number, y: number, syl: string, tileId: string }[] = [];
   for (const t of boardTiles) {
-    const rot = (t.rotation % 360 + 360) % 360;
-    const rad = rot * Math.PI / 180;
-    const cx = (t.x || 0) + 112;
-    const cy = (t.y || 0) + 56;
-    allSquares.push({
-      x: Math.round(cx - 56 * Math.cos(rad)),
-      y: Math.round(cy - 56 * Math.sin(rad)),
-      syl: t.leftSyllable,
-      tileId: t.id,
-      isRightSq: false
-    });
-    allSquares.push({
-      x: Math.round(cx + 56 * Math.cos(rad)),
-      y: Math.round(cy + 56 * Math.sin(rad)),
-      syl: t.rightSyllable,
-      tileId: t.id,
-      isRightSq: true
-    });
+    if (t.isSingleSyllable) {
+      // Single-syl tile: one square
+      allSquares.push({
+        x: (t.x || 0) + 56,
+        y: (t.y || 0) + 56,
+        syl: t.leftSyllable,
+        tileId: t.id
+      });
+    } else {
+      // Normal 2-syl tile: two squares
+      const rot = (t.rotation % 360 + 360) % 360;
+      const rad = rot * Math.PI / 180;
+      const cx = (t.x || 0) + 112;
+      const cy = (t.y || 0) + 56;
+      allSquares.push({
+        x: Math.round(cx - 56 * Math.cos(rad)),
+        y: Math.round(cy - 56 * Math.sin(rad)),
+        syl: t.leftSyllable,
+        tileId: t.id
+      });
+      allSquares.push({
+        x: Math.round(cx + 56 * Math.cos(rad)),
+        y: Math.round(cy + 56 * Math.sin(rad)),
+        syl: t.rightSyllable,
+        tileId: t.id
+      });
+    }
   }
 
   const exposed: string[] = [];
   for (const sq of allSquares) {
-    // Only the 'right/bottom' halves of tiles can serve as connection points for the next tile
-    if (!sq.isRightSq) continue;
-
     // A square is exposed (free end) if it has NO neighbor from another tile
     let hasNeighborFromOtherTile = false;
     for (const other of allSquares) {
@@ -232,24 +252,21 @@ function App() {
           }
         } else {
           // Word mode: ensure at least one palette tile can form a word with an exposed board syllable
-          const currentPool = SYLLABLES_WORD_MODE;
           const exposed = getExposedSyllables(tiles);
           const uncoveredSyllables = exposed.filter(boardSyl => {
-            const completions = currentPool.filter(s => VALID_WORDS.has(boardSyl + s) || VALID_WORDS.has(s + boardSyl));
-            return completions.length > 0 && !paletteTiles.some(pt => completions.includes(pt.leftSyllable) || completions.includes(pt.rightSyllable));
+            const completions = SYLLABLES_WORD_MODE.filter(s => VALID_WORDS.has(boardSyl + s) || VALID_WORDS.has(s + boardSyl));
+            return completions.length > 0 && !paletteTiles.some(pt => completions.includes(pt.leftSyllable));
           });
 
           if (uncoveredSyllables.length > 0) {
             setTiles(prev => {
               let updated = [...prev];
               for (const boardSyl of uncoveredSyllables) {
-                const completions = currentPool.filter(s => VALID_WORDS.has(boardSyl + s) || VALID_WORDS.has(s + boardSyl));
+                const completions = SYLLABLES_WORD_MODE.filter(s => VALID_WORDS.has(boardSyl + s) || VALID_WORDS.has(s + boardSyl));
                 if (completions.length === 0) continue;
                 const pIndex = updated.findIndex(t => !t.isOnBoard);
                 if (pIndex === -1) break;
-                const tile = generateRandomTile(undefined, currentPool);
-                tile.leftSyllable = completions[Math.floor(Math.random() * completions.length)];
-                updated[pIndex] = tile;
+                updated[pIndex] = generateSingleSylTile(completions[Math.floor(Math.random() * completions.length)]);
               }
               return updated;
             });
@@ -320,8 +337,9 @@ function App() {
   useEffect(() => {
     // RESET GAME ON MODE CHANGE
     const currentPool = gameMode === 'match-syllables' ? SYLLABLES : SYLLABLES_WORD_MODE;
+    const isWordMode = gameMode === 'build-words';
 
-    // 1 Starter tile on the board
+    // 1 Starter tile on the board (always a normal 2-syl domino)
     const starterTile = generateRandomTile(undefined, currentPool);
     starterTile.isOnBoard = true;
     starterTile.x = Math.round((window.innerWidth / 2 - 112) / 56) * 56;
@@ -331,11 +349,25 @@ function App() {
 
     // 10 tiles in palette
     const initialTiles: TileData[] = [starterTile];
-    for (let i = 0; i < 10; i++) {
-      if (i < 3) {
-        initialTiles.push(generateRandomTile([starterTile.leftSyllable, starterTile.rightSyllable], currentPool));
-      } else {
-        initialTiles.push(generateRandomTile(undefined, currentPool));
+    if (isWordMode) {
+      // Word mode: single-syllable tiles in palette
+      const starterSyls = [starterTile.leftSyllable, starterTile.rightSyllable];
+      const completions = getWordCompletions(starterSyls);
+      for (let i = 0; i < 10; i++) {
+        if (i < 3 && completions.length > 0) {
+          initialTiles.push(generateSingleSylTile(completions[Math.floor(Math.random() * completions.length)]));
+        } else {
+          initialTiles.push(generateSingleSylTile(undefined, currentPool));
+        }
+      }
+    } else {
+      // Match mode: normal 2-syl dominos
+      for (let i = 0; i < 10; i++) {
+        if (i < 3) {
+          initialTiles.push(generateRandomTile([starterTile.leftSyllable, starterTile.rightSyllable], currentPool));
+        } else {
+          initialTiles.push(generateRandomTile(undefined, currentPool));
+        }
       }
     }
     setTiles(initialTiles);
@@ -442,38 +474,54 @@ function App() {
         const palette = document.querySelector('.palette-container');
         const isOverPalette = palette && e.clientY > palette.getBoundingClientRect().top;
 
-        const rot = (draggedTile.rotation % 360 + 360) % 360;
-        const rad = rot * Math.PI / 180;
-
         const snappedX = Math.round((draggedTile.x || 0) / 56) * 56;
         const snappedY = Math.round((draggedTile.y || 0) / 56) * 56;
 
-        const cx = snappedX + 112;
-        const cy = snappedY + 56;
-
-        const A_sq1 = { x: Math.round(cx - 56 * Math.cos(rad)), y: Math.round(cy - 56 * Math.sin(rad)), syl: draggedTile.leftSyllable };
-        const A_sq2 = { x: Math.round(cx + 56 * Math.cos(rad)), y: Math.round(cy + 56 * Math.sin(rad)), syl: draggedTile.rightSyllable };
-
         const otherTiles = tiles.filter(t => t.isOnBoard && t.id !== draggingId);
 
+        // Build board squares from all other on-board tiles
         const allBoardSquares: { x: number, y: number, syl: string, tileId: string }[] = [];
         for (const t of otherTiles) {
-          const trot = (t.rotation % 360 + 360) % 360;
-          const trad = trot * Math.PI / 180;
-          const tcx = (t.x || 0) + 112;
-          const tcy = (t.y || 0) + 56;
-          allBoardSquares.push({
-            x: Math.round(tcx - 56 * Math.cos(trad)),
-            y: Math.round(tcy - 56 * Math.sin(trad)),
-            syl: t.leftSyllable,
-            tileId: t.id
-          });
-          allBoardSquares.push({
-            x: Math.round(tcx + 56 * Math.cos(trad)),
-            y: Math.round(tcy + 56 * Math.sin(trad)),
-            syl: t.rightSyllable,
-            tileId: t.id
-          });
+          if (t.isSingleSyllable) {
+            allBoardSquares.push({
+              x: (t.x || 0) + 56,
+              y: (t.y || 0) + 56,
+              syl: t.leftSyllable,
+              tileId: t.id
+            });
+          } else {
+            const trot = (t.rotation % 360 + 360) % 360;
+            const trad = trot * Math.PI / 180;
+            const tcx = (t.x || 0) + 112;
+            const tcy = (t.y || 0) + 56;
+            allBoardSquares.push({
+              x: Math.round(tcx - 56 * Math.cos(trad)),
+              y: Math.round(tcy - 56 * Math.sin(trad)),
+              syl: t.leftSyllable,
+              tileId: t.id
+            });
+            allBoardSquares.push({
+              x: Math.round(tcx + 56 * Math.cos(trad)),
+              y: Math.round(tcy + 56 * Math.sin(trad)),
+              syl: t.rightSyllable,
+              tileId: t.id
+            });
+          }
+        }
+
+        // Build dragged tile squares
+        let draggedSquares: { x: number, y: number, syl: string }[];
+        if (draggedTile.isSingleSyllable) {
+          draggedSquares = [{ x: snappedX + 56, y: snappedY + 56, syl: draggedTile.leftSyllable }];
+        } else {
+          const rot = (draggedTile.rotation % 360 + 360) % 360;
+          const rad = rot * Math.PI / 180;
+          const cx = snappedX + 112;
+          const cy = snappedY + 56;
+          draggedSquares = [
+            { x: Math.round(cx - 56 * Math.cos(rad)), y: Math.round(cy - 56 * Math.sin(rad)), syl: draggedTile.leftSyllable },
+            { x: Math.round(cx + 56 * Math.cos(rad)), y: Math.round(cy + 56 * Math.sin(rad)), syl: draggedTile.rightSyllable }
+          ];
         }
 
         let isOverlapping = false;
@@ -481,17 +529,16 @@ function App() {
         let invalidConnections = 0;
         let touchedAnyBoardSquare = false;
 
-
-
-        for (const Asq of [A_sq1, A_sq2]) {
+        for (const Asq of draggedSquares) {
           for (const Bsq of allBoardSquares) {
             const dist = Math.abs(Asq.x - Bsq.x) + Math.abs(Asq.y - Bsq.y);
             if (dist < 10) {
               isOverlapping = true;
             } else if (dist > 100 && dist < 120) {
-              // Touching!
               touchedAnyBoardSquare = true;
+
               if (gameMode === 'match-syllables') {
+                // MATCH MODE: same syllable matching
                 if (Asq.syl !== Bsq.syl) {
                   invalidConnections++;
                 } else {
@@ -504,16 +551,38 @@ function App() {
                       break;
                     }
                   }
-
                   if (bSqIsTaken) {
                     invalidConnections++;
                   } else {
                     validConnections++;
                   }
                 }
+              } else if (draggedTile.isSingleSyllable) {
+                // WORD MODE (single-syl tile): determine word by reading direction
+                const isHorizontal = Math.abs(Asq.y - Bsq.y) < 10;
+                const isVertical = Math.abs(Asq.x - Bsq.x) < 10;
+                let word = '';
+
+                if (isHorizontal) {
+                  // Left-to-right reading
+                  const leftSyl = Asq.x < Bsq.x ? Asq.syl : Bsq.syl;
+                  const rightSyl = Asq.x < Bsq.x ? Bsq.syl : Asq.syl;
+                  word = leftSyl + rightSyl;
+                } else if (isVertical) {
+                  // Top-to-bottom reading
+                  const topSyl = Asq.y < Bsq.y ? Asq.syl : Bsq.syl;
+                  const bottomSyl = Asq.y < Bsq.y ? Bsq.syl : Asq.syl;
+                  word = topSyl + bottomSyl;
+                }
+
+                if (word && VALID_WORDS.has(word)) {
+                  validConnections++;
+                } else if (word) {
+                  invalidConnections++;
+                }
               } else {
-                // WORD MODE: check if board square already has a neighbor from another tile
-                // If it does, this square is "used up" and can't accept new connections
+                // WORD MODE (normal 2-syl tile — only starter, shouldn't be dragged)
+                // Check if board square already has a neighbor
                 let bSqHasNeighbor = false;
                 for (const Csq of allBoardSquares) {
                   if (Csq.tileId === Bsq.tileId) continue;
@@ -523,46 +592,32 @@ function App() {
                     break;
                   }
                 }
-
-                if (bSqHasNeighbor) {
-                  // Board square already connected — ignore (not an error)
-                } else {
-                  const isHorizontal = Math.abs(Asq.y - Bsq.y) < 10;
-                  const isVertical = Math.abs(Asq.x - Bsq.x) < 10;
-                  const isDraggedToRight = Asq.x > Bsq.x;
-
-                  let word = '';
-                  let isAllowedDirection = false;
-
-                  if (isHorizontal && isDraggedToRight) {
-                    // Right-side: word = board_syl + new_syl
-                    word = Bsq.syl + Asq.syl;
-                    isAllowedDirection = true;
-                  } else if (isVertical) {
-                    // Vertical: check BOTH reading directions
+                if (!bSqHasNeighbor) {
+                  const isHorizontal2 = Math.abs(Asq.y - Bsq.y) < 10;
+                  const isVertical2 = Math.abs(Asq.x - Bsq.x) < 10;
+                  let word2 = '';
+                  if (isHorizontal2) {
+                    const leftSyl = Asq.x < Bsq.x ? Asq.syl : Bsq.syl;
+                    const rightSyl = Asq.x < Bsq.x ? Bsq.syl : Asq.syl;
+                    word2 = leftSyl + rightSyl;
+                  } else if (isVertical2) {
                     const topSyl = Asq.y < Bsq.y ? Asq.syl : Bsq.syl;
                     const bottomSyl = Asq.y < Bsq.y ? Bsq.syl : Asq.syl;
-                    if (VALID_WORDS.has(topSyl + bottomSyl)) {
-                      word = topSyl + bottomSyl;
-                    } else {
-                      word = bottomSyl + topSyl;
-                    }
-                    isAllowedDirection = true;
+                    word2 = topSyl + bottomSyl;
                   }
-
-                  if (!isAllowedDirection) {
-                    // Left-side horizontal touch — ignore
-                  } else if (!VALID_WORDS.has(word)) {
-                    invalidConnections++;
-                  } else {
-                    validConnections++;
-                  }
+                  if (word2 && VALID_WORDS.has(word2)) validConnections++;
+                  else if (word2) invalidConnections++;
                 }
               }
             }
           }
         }
 
+        // For single-syl tiles in word mode: reject if touching more than 1 board square
+        if (draggedTile.isSingleSyllable && touchedAnyBoardSquare && (validConnections + invalidConnections) > 1) {
+          invalidConnections = 1;
+          validConnections = 0;
+        }
 
         let isValid = !isOverlapping && invalidConnections === 0 && !isOverPalette;
         let hasNeighbor = validConnections > 0;
@@ -571,7 +626,6 @@ function App() {
           isValid = true;
           hasNeighbor = true; // Starter case
         }
-
 
         if (isValid && hasNeighbor) {
           // ACCEPT CONNECTION
@@ -585,27 +639,26 @@ function App() {
 
             // Replenish palette if it wasn't connected before!
             if (!draggedTile.hasBeenConnected) {
-              const currentPool = gameMode === 'match-syllables' ? SYLLABLES : SYLLABLES_WORD_MODE;
-              let leftMatching: string[] = [];
               if (gameMode === 'match-syllables') {
                 const availableBoardSyllables = getAvailableSyllables(updated);
-                leftMatching = availableBoardSyllables;
+                const newPaletteTile = generateRandomTile(availableBoardSyllables, SYLLABLES);
+                updated = [...updated, newPaletteTile];
               } else {
+                // Word mode: generate a single-syl tile guaranteed to form a word
                 const exposed = getExposedSyllables(updated);
-                leftMatching = getWordCompletions(exposed);
+                const completions = getWordCompletions(exposed);
+                if (completions.length > 0) {
+                  const newTile = generateSingleSylTile(completions[Math.floor(Math.random() * completions.length)]);
+                  updated = [...updated, newTile];
+                } else {
+                  updated = [...updated, generateSingleSylTile()];
+                }
               }
-              // Build a tile whose LEFT syllable is guaranteed to complete a word (board_syl + left_syl = word)
-              const newPaletteTile = generateRandomTile(undefined, currentPool);
-              if (leftMatching.length > 0) {
-                newPaletteTile.leftSyllable = leftMatching[Math.floor(Math.random() * leftMatching.length)];
-              }
-              updated = [...updated, newPaletteTile];
             }
             return updated;
           });
         } else if (isValid && !hasNeighbor && !(gameMode === 'build-words' && touchedAnyBoardSquare)) {
           // FREE PLACEMENT (No connection made, just dropped freely on the board)
-          // In word mode: blocked if touching any board square (prevents visual false-connections)
           setTiles(prev => prev.map(t =>
             t.id === draggingId ? { ...t, x: snappedX, y: snappedY } : t
           ));
@@ -665,13 +718,11 @@ function App() {
             style={{ padding: '0.75rem 1.5rem', fontSize: '1.2rem', borderRadius: '12px', border: '1px solid var(--palette-border)', background: 'var(--palette-bg)', color: '#fff', cursor: 'pointer', fontWeight: 600 }}
             onClick={() => {
               const onBoardTiles = tiles.filter(t => t.isOnBoard);
-              const availableBoardSyllables = getAvailableSyllables(tiles);
               const currentPool = gameMode === 'match-syllables' ? SYLLABLES : SYLLABLES_WORD_MODE;
-
               const newPaletteTiles: TileData[] = [];
 
               if (gameMode === 'match-syllables') {
-                // First 5: biased towards matching board syllables
+                const availableBoardSyllables = getAvailableSyllables(tiles);
                 for (let i = 0; i < 10; i++) {
                   if (i < 5 && availableBoardSyllables.length > 0) {
                     newPaletteTiles.push(generateRandomTile(availableBoardSyllables, currentPool));
@@ -680,19 +731,15 @@ function App() {
                   }
                 }
               } else {
-                // Word mode: one guaranteed tile per exposed board syllable
+                // Word mode: single-syl tiles with guarantees
                 const exposed = getExposedSyllables(tiles);
-                for (const boardSyl of exposed) {
-                  const completions = currentPool.filter(s => VALID_WORDS.has(boardSyl + s) || VALID_WORDS.has(s + boardSyl));
-                  if (completions.length > 0 && newPaletteTiles.length < 6) {
-                    const tile = generateRandomTile(undefined, currentPool);
-                    tile.leftSyllable = completions[Math.floor(Math.random() * completions.length)];
-                    newPaletteTiles.push(tile);
+                const completions = getWordCompletions(exposed);
+                for (let i = 0; i < 10; i++) {
+                  if (i < 4 && completions.length > 0) {
+                    newPaletteTiles.push(generateSingleSylTile(completions[Math.floor(Math.random() * completions.length)]));
+                  } else {
+                    newPaletteTiles.push(generateSingleSylTile(undefined, currentPool));
                   }
-                }
-                // Fill up to 10 with random tiles
-                while (newPaletteTiles.length < 10) {
-                  newPaletteTiles.push(generateRandomTile(undefined, currentPool));
                 }
               }
 
@@ -722,6 +769,7 @@ function App() {
         <div style={{ transform: `translate(${boardOffset.x}px, ${boardOffset.y}px) scale(${boardZoom})`, transformOrigin: '0 0', width: '100%', height: '100%', position: 'absolute', pointerEvents: 'none' }}>
           {tiles.filter(t => t.isOnBoard).map(tile => {
             let classes = `tile on-board`;
+            if (tile.isSingleSyllable) classes += ' tile-single';
             if (draggingId === tile.id) classes += ' is-dragging';
             if (glowId === tile.id) classes += ' glow-success';
 
@@ -738,18 +786,26 @@ function App() {
                 onPointerDown={(e) => handlePointerDownTile(e, tile.id, true)}
                 onDoubleClick={() => handleDoubleClickTile(tile.id, tile.isOnBoard, !!tile.hasBeenConnected)}
               >
-                <div className="tile-part left">
-                  <div style={{ transform: `rotate(${-tile.rotation}deg)`, transition: 'transform 0.2s' }}>
+                {tile.isSingleSyllable ? (
+                  <div className="tile-part single">
                     <ColoredSyllable text={tile.leftSyllable} />
                   </div>
-                </div>
-                <div className="tile-part right">
-                  <div style={{ transform: `rotate(${-tile.rotation}deg)`, transition: 'transform 0.2s' }}>
-                    <ColoredSyllable text={tile.rightSyllable} />
-                  </div>
-                </div>
+                ) : (
+                  <>
+                    <div className="tile-part left">
+                      <div style={{ transform: `rotate(${-tile.rotation}deg)`, transition: 'transform 0.2s' }}>
+                        <ColoredSyllable text={tile.leftSyllable} />
+                      </div>
+                    </div>
+                    <div className="tile-part right">
+                      <div style={{ transform: `rotate(${-tile.rotation}deg)`, transition: 'transform 0.2s' }}>
+                        <ColoredSyllable text={tile.rightSyllable} />
+                      </div>
+                    </div>
+                  </>
+                )}
 
-                {(!draggingId && !tile.hasBeenConnected) && (
+                {(!draggingId && !tile.hasBeenConnected && gameMode === 'match-syllables') && (
                   <button
                     className="rotate-btn"
                     onClick={(e) => rotateTile(tile.id, e)}
@@ -769,12 +825,18 @@ function App() {
           {tiles.filter(t => !t.isOnBoard).map(tile => (
             <div key={tile.id} className="tile-wrapper">
               <div
-                className={`tile ${draggingId === tile.id ? 'is-dragging' : ''}`}
+                className={`tile ${tile.isSingleSyllable ? 'tile-single' : ''} ${draggingId === tile.id ? 'is-dragging' : ''}`}
                 onPointerDown={(e) => handlePointerDownTile(e, tile.id, false)}
                 style={{ transform: draggingId === tile.id ? 'scale(1.05)' : 'none' }}
               >
-                <div className="tile-part left"><ColoredSyllable text={tile.leftSyllable} /></div>
-                <div className="tile-part right"><ColoredSyllable text={tile.rightSyllable} /></div>
+                {tile.isSingleSyllable ? (
+                  <div className="tile-part single"><ColoredSyllable text={tile.leftSyllable} /></div>
+                ) : (
+                  <>
+                    <div className="tile-part left"><ColoredSyllable text={tile.leftSyllable} /></div>
+                    <div className="tile-part right"><ColoredSyllable text={tile.rightSyllable} /></div>
+                  </>
+                )}
               </div>
             </div>
           ))}
