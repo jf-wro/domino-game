@@ -267,12 +267,15 @@ function App() {
           if (uncoveredSyllables.length > 0) {
             setTiles(prev => {
               let updated = [...prev];
+              const currentPaletteSyls = new Set(updated.filter(t => !t.isOnBoard).map(t => t.leftSyllable));
               for (const boardSyl of uncoveredSyllables) {
-                const completions = SYLLABLES_WORD_MODE.filter(s => VALID_WORDS.has(boardSyl + s) || VALID_WORDS.has(s + boardSyl));
+                const completions = SYLLABLES_WORD_MODE.filter(s => VALID_WORDS.has(boardSyl + s) || VALID_WORDS.has(s + boardSyl) && !currentPaletteSyls.has(s));
                 if (completions.length === 0) continue;
                 const pIndex = updated.findIndex(t => !t.isOnBoard);
                 if (pIndex === -1) break;
-                updated[pIndex] = generateSingleSylTile(completions[Math.floor(Math.random() * completions.length)]);
+                const chosen = completions[Math.floor(Math.random() * completions.length)];
+                updated[pIndex] = generateSingleSylTile(chosen);
+                currentPaletteSyls.add(chosen);
               }
               return updated;
             });
@@ -356,14 +359,22 @@ function App() {
     // 10 tiles in palette
     const initialTiles: TileData[] = [starterTile];
     if (isWordMode) {
-      // Word mode: single-syllable tiles in palette
+      // Word mode: single-syllable tiles in palette, all unique
       const starterSyls = [starterTile.leftSyllable, starterTile.rightSyllable];
       const completions = getWordCompletions(starterSyls);
+      const usedSyls = new Set<string>();
+      
       for (let i = 0; i < 10; i++) {
         if (i < 3 && completions.length > 0) {
-          initialTiles.push(generateSingleSylTile(completions[Math.floor(Math.random() * completions.length)]));
+          const available = completions.filter(s => !usedSyls.has(s));
+          const chosen = available.length > 0 ? available[Math.floor(Math.random() * available.length)] : currentPool.find(s => !usedSyls.has(s)) || currentPool[0];
+          initialTiles.push(generateSingleSylTile(chosen));
+          usedSyls.add(chosen);
         } else {
-          initialTiles.push(generateSingleSylTile(undefined, currentPool));
+          const available = currentPool.filter(s => !usedSyls.has(s));
+          const chosen = available.length > 0 ? available[Math.floor(Math.random() * available.length)] : currentPool[0];
+          initialTiles.push(generateSingleSylTile(chosen));
+          usedSyls.add(chosen);
         }
       }
     } else {
@@ -650,14 +661,19 @@ function App() {
                 const newPaletteTile = generateRandomTile(availableBoardSyllables, SYLLABLES);
                 updated = [...updated, newPaletteTile];
               } else {
-                // Word mode: generate a single-syl tile guaranteed to form a word
+                // Word mode: generate a single-syl tile guaranteed to form a word, ensuring uniqueness in palette
                 const exposed = getExposedSyllables(updated);
                 const completions = getWordCompletions(exposed);
-                if (completions.length > 0) {
-                  const newTile = generateSingleSylTile(completions[Math.floor(Math.random() * completions.length)]);
-                  updated = [...updated, newTile];
+                const paletteSyls = new Set(updated.filter(t => !t.isOnBoard).map(t => t.leftSyllable));
+                
+                const availableCompletions = completions.filter(s => !paletteSyls.has(s));
+                if (availableCompletions.length > 0) {
+                  const chosen = availableCompletions[Math.floor(Math.random() * availableCompletions.length)];
+                  updated = [...updated, generateSingleSylTile(chosen)];
                 } else {
-                  updated = [...updated, generateSingleSylTile()];
+                  const fallbackPool = SYLLABLES_WORD_MODE.filter(s => !paletteSyls.has(s));
+                  const chosen = fallbackPool.length > 0 ? fallbackPool[Math.floor(Math.random() * fallbackPool.length)] : SYLLABLES_WORD_MODE[0];
+                  updated = [...updated, generateSingleSylTile(chosen)];
                 }
               }
             }
@@ -737,14 +753,21 @@ function App() {
                   }
                 }
               } else {
-                // Word mode: single-syl tiles with guarantees
+                // Word mode: single-syl tiles with guarantees and uniqueness
                 const exposed = getExposedSyllables(tiles);
                 const completions = getWordCompletions(exposed);
+                const usedSyls = new Set<string>();
                 for (let i = 0; i < 10; i++) {
                   if (i < 4 && completions.length > 0) {
-                    newPaletteTiles.push(generateSingleSylTile(completions[Math.floor(Math.random() * completions.length)]));
+                    const available = completions.filter(s => !usedSyls.has(s));
+                    const chosen = available.length > 0 ? available[Math.floor(Math.random() * available.length)] : currentPool.find(s => !usedSyls.has(s)) || currentPool[0];
+                    newPaletteTiles.push(generateSingleSylTile(chosen));
+                    usedSyls.add(chosen);
                   } else {
-                    newPaletteTiles.push(generateSingleSylTile(undefined, currentPool));
+                    const available = currentPool.filter(s => !usedSyls.has(s));
+                    const chosen = available.length > 0 ? available[Math.floor(Math.random() * available.length)] : currentPool[0];
+                    newPaletteTiles.push(generateSingleSylTile(chosen));
+                    usedSyls.add(chosen);
                   }
                 }
               }
