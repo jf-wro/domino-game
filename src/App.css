@@ -31,6 +31,26 @@
   filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
 }
 
+/* Manual mode LED indicator */
+.manual-led {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #4ade80;
+  box-shadow: 0 0 8px 4px rgba(74, 222, 128, 0.6), inset 0 -2px 4px rgba(0,0,0,0.2);
+  z-index: 200;
+  pointer-events: none;
+  animation: ledPulse 2s ease-in-out infinite;
+}
+
+@keyframes ledPulse {
+  0%, 100% { box-shadow: 0 0 8px 4px rgba(74, 222, 128, 0.6), inset 0 -2px 4px rgba(0,0,0,0.2); }
+  50% { box-shadow: 0 0 14px 6px rgba(74, 222, 128, 0.8), inset 0 -2px 4px rgba(0,0,0,0.2); }
+}
+
 .board-area {
   flex: 1;
   position: relative;

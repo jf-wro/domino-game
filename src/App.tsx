@@ -241,6 +241,18 @@ function App() {
   const [isPanning, setIsPanning] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [gameMode, setGameMode] = useState<'match-syllables' | 'build-words'>('match-syllables');
+  const [manualMode, setManualMode] = useState(false);
+
+  // Toggle manual mode with '1' key (only in word mode)
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === '1' && gameMode === 'build-words') {
+        setManualMode(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [gameMode]);
 
   useEffect(() => {
     const boardTiles = tiles.filter(t => t.isOnBoard && t.hasBeenConnected);
@@ -580,24 +592,30 @@ function App() {
                 // WORD MODE (single-syl tile): determine word by reading direction
                 const isHorizontal = Math.abs(Asq.y - Bsq.y) < 10;
                 const isVertical = Math.abs(Asq.x - Bsq.x) < 10;
-                let word = '';
 
-                if (isHorizontal) {
-                  // Left-to-right reading
-                  const leftSyl = Asq.x < Bsq.x ? Asq.syl : Bsq.syl;
-                  const rightSyl = Asq.x < Bsq.x ? Bsq.syl : Asq.syl;
-                  word = leftSyl + rightSyl;
-                } else if (isVertical) {
-                  // Top-to-bottom reading
-                  const topSyl = Asq.y < Bsq.y ? Asq.syl : Bsq.syl;
-                  const bottomSyl = Asq.y < Bsq.y ? Bsq.syl : Asq.syl;
-                  word = topSyl + bottomSyl;
-                }
+                if (manualMode) {
+                  // Manual mode: accept any adjacent placement
+                  if (isHorizontal || isVertical) {
+                    validConnections++;
+                  }
+                } else {
+                  let word = '';
 
-                if (word && VALID_WORDS.has(word)) {
-                  validConnections++;
-                } else if (word) {
-                  invalidConnections++;
+                  if (isHorizontal) {
+                    const leftSyl = Asq.x < Bsq.x ? Asq.syl : Bsq.syl;
+                    const rightSyl = Asq.x < Bsq.x ? Bsq.syl : Asq.syl;
+                    word = leftSyl + rightSyl;
+                  } else if (isVertical) {
+                    const topSyl = Asq.y < Bsq.y ? Asq.syl : Bsq.syl;
+                    const bottomSyl = Asq.y < Bsq.y ? Bsq.syl : Asq.syl;
+                    word = topSyl + bottomSyl;
+                  }
+
+                  if (word && VALID_WORDS.has(word)) {
+                    validConnections++;
+                  } else if (word) {
+                    invalidConnections++;
+                  }
                 }
               } else {
                 // WORD MODE (normal 2-syl tile — only starter, shouldn't be dragged)
@@ -737,6 +755,9 @@ function App() {
     >
       <div className="header">
         <h1 className="title">Sylabo Domino z Dzieszkoła.pl</h1>
+        {manualMode && gameMode === 'build-words' && (
+          <div className="manual-led" title="Tryb ręczny (naciśnij 1 aby wyłączyć)" />
+        )}
         <div style={{ pointerEvents: 'auto', display: 'flex', gap: '1rem' }}>
           <button
             style={{ padding: '0.75rem 1.5rem', fontSize: '1.2rem', borderRadius: '12px', border: '1px solid var(--palette-border)', background: 'var(--palette-bg)', color: '#fff', cursor: 'pointer', fontWeight: 600 }}
