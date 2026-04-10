@@ -33,6 +33,8 @@ const VALID_WORDS = new Set([
   'rada', 'rama', 'rasa', 'rana', 'raca',
   // ry-
   'ryba',
+  // sa-
+  'sala',
   // so-
   'sowa',
   // ta-
